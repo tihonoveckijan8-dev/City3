@@ -14,7 +14,14 @@ state.tiles=state.tiles||copy(World.initial);
 // WHY: migrate only the untouched original starter layout; preserve any player-built structures.
 if(state.tiles[38]?.type==='road'&&state.tiles[39]?.type==='house'&&state.tiles[40]?.type==='house'&&state.tiles[41]?.type==='road'&&state.tiles[42]?.type==='road'&&state.tiles[43]?.type==='road'){[38,39,40,41,42,43].forEach(id=>delete state.tiles[id]);Object.assign(state.tiles,copy(World.initial))}
 state.resources=state.resources||{wood:34,stone:20,gold:24,food:34,grain:0,flour:0};
-state.log=state.log||[];state.cityTier=state.cityTier||'hamlet';state.caravan=state.caravan||{months:2,arrived:false};state.royal=state.royal||{policy:'balanced',patrols:false,raidIn:0,raid:null};state.royal.policy=state.royal.policy||'balanced';state.clock=Number.isFinite(state.clock)?state.clock:420;state.day=state.day||1;
+state.log=state.log||[];state.cityTier=state.cityTier||'hamlet';state.caravan=state.caravan||{months:2,arrived:false};state.royal=state.royal||{policy:'balanced',patrols:false,raidIn:0,raid:null};state.royal.policy=state.royal.policy||'balanced';
+state.diplomacy=state.diplomacy||{northvale:{relation:35,cooldown:0,tradePact:false,alliance:false},silvercoast:{relation:45,cooldown:0,tradePact:false,alliance:false},ashford:{relation:20,cooldown:0,tradePact:false,alliance:false}};
+for(const realm of [{id:'northvale',name:'Северный Край'},{id:'silvercoast',name:'Серебряный Берег'},{id:'ashford',name:'Эшфорд'}]){
+ const d=state.diplomacy[realm.id]||(state.diplomacy[realm.id]={relation:30,cooldown:0,tradePact:false,alliance:false});
+ d.relation=Number.isFinite(d.relation)?d.relation:30;d.cooldown=d.cooldown||0;d.tradePact=!!d.tradePact;d.alliance=!!d.alliance;d.name=realm.name;
+}
+state.royal.commissionsDone=state.royal.commissionsDone||0;
+state.clock=Number.isFinite(state.clock)?state.clock:420;state.day=state.day||1;
 state.people.forEach((p,i)=>{p.id=p.id||i+1;p.home=p.home??(i<4?31:49);p.workplace=p.workplace??null;p.pos=p.pos??p.home;p.route=Array.isArray(p.route)?p.route:[];p.routeIndex=p.routeIndex||0;p.desiredTarget=p.desiredTarget??null;p.status=p.status||'resting';p.walkTicks=p.walkTicks||0});
 function addLog(s){state.log.unshift(s);state.log=state.log.slice(0,8)}
 const tradeGoods={wood:{label:'Древесина',icon:'🪵',base:2},stone:{label:'Камень',icon:'🪨',base:3},food:{label:'Провизия',icon:'🥖',base:2},grain:{label:'Зерно',icon:'🌾',base:2},flour:{label:'Мука',icon:'⚪',base:3}};
@@ -36,6 +43,49 @@ function resolveRaid(method){
 }
 function setPolicy(policy){state.royal.policy=policy;addLog('Королевский указ изменён: '+({low:'низкие налоги',balanced:'обычные налоги',high:'повышенные налоги'}[policy])+'.');render()}
 function togglePatrols(){state.royal.patrols=!state.royal.patrols;addLog(state.royal.patrols?'Королевский дозор начал патрулировать дороги.':'Патрули временно распущены.');render()}
+
+// WHY: diplomatic relations and commissions live in the save so they survive reloads.
+const realms=[
+ {id:'northvale',name:'Северный Край',icon:'🏔️',desc:'Суровые горцы и мастера камня.'},
+ {id:'silvercoast',name:'Серебряный Берег',icon:'⚓',desc:'Морские купцы и искусные торговцы.'},
+ {id:'ashford',name:'Эшфорд',icon:'🦅',desc:'Пограничное княжество с сильной конницей.'}
+];
+const commissionPool=[
+ {id:'timber',title:'Запас для королевской верфи',resource:'wood',amount:12,reward:18,icon:'🪵'},
+ {id:'stone',title:'Камень для новой дороги',resource:'stone',amount:9,reward:20,icon:'🪨'},
+ {id:'provisions',title:'Провизия для караванного тракта',resource:'food',amount:14,reward:22,icon:'🥖'}
+];
+function commissionSeed(){const q=commissionPool[0];state.royal.commission={...q}}
+if(!state.royal.commission)commissionSeed();
+function commissionNext(){
+ const index=((state.year-1)*12+state.month-1+(state.royal.commissionsDone||0))%commissionPool.length;
+ const q=commissionPool[index];state.royal.commission={...q};addLog('Королевский совет объявил поручение: '+q.title+'.');
+}
+function sendEnvoy(id){
+ const d=state.diplomacy[id];if(!d)return;
+ if((d.cooldown||0)>0){addLog('Посол ещё не вернулся из '+d.name+'.');render();return}
+ if(state.resources.wood<4||state.resources.food<3){addLog('Для посольства нужны 4 древесины и 3 провизии.');render();return}
+ state.resources.wood-=4;state.resources.food-=3;d.relation=Math.min(100,d.relation+9);d.cooldown=2;
+ addLog('Посол вернулся из державы «'+d.name+'». Отношения улучшились.');render();
+}
+function signTreaty(id,type){
+ const d=state.diplomacy[id];if(!d)return;
+ if(type==='trade'){
+  if(d.tradePact){addLog('Торговый договор уже действует.');render();return}
+  if(!hasMarket()||d.relation<50||state.resources.gold<15){addLog('Для торгового договора нужны рынок, 50 доверия и 15 золотых.');render();return}
+  state.resources.gold-=15;d.tradePact=true;d.relation=Math.min(100,d.relation+5);addLog('Подписан торговый договор с державой «'+d.name+'». Казна будет получать пошлину.');render();return
+ }
+ if(d.alliance){addLog('Союз с этой державой уже заключён.');render();return}
+ if(tierIndex(state.cityTier)<tierIndex('town')||d.relation<80||state.resources.gold<25){addLog('Для союза нужны статус города, 80 доверия и 25 золотых.');render();return}
+ state.resources.gold-=25;d.alliance=true;d.relation=Math.min(100,d.relation+8);state.happiness=Math.min(100,state.happiness+4);addLog('Заключён союз с державой «'+d.name+'»! Эльдория обрела надёжного партнёра.');render();
+}
+function completeCommission(){
+ const q=state.royal.commission;if(!q)return;
+ if((state.resources[q.resource]||0)<q.amount){addLog('Поручение ещё не выполнено: не хватает ресурсов.');render();return}
+ state.resources[q.resource]-=q.amount;state.resources.gold+=q.reward;state.happiness=Math.min(100,state.happiness+2);
+ state.royal.commission=null;state.royal.commissionsDone=(state.royal.commissionsDone||0)+1;
+ addLog('Королевское поручение выполнено! Награда: '+q.reward+' золотых.');commissionNext();render();
+}
 function tradePrice(key,side){const good=tradeGoods[key],stock=state.resources[key]||0;const pressure=Math.max(.65,Math.min(2.1,1.55-stock/90));let price=Math.max(1,Math.round(good.base*pressure));if(state.caravan.arrived)price=Math.max(1,Math.round(price*(side==='buy'?.9:1.15)));return price}
 function trade(key,side){if(!hasMarket()){addLog('Для торговли построй рынок и назначь на него торговцев.');render();return}const qty=5,price=tradePrice(key,side),total=price*qty;if(side==='buy'){if(state.resources.gold<total){addLog('Казна пуста: не хватает золота для покупки.');render();return}state.resources.gold-=total;state.resources[key]=(state.resources[key]||0)+qty;addLog('Куплено '+qty+' ед. ресурса «'+tradeGoods[key].label+'» за '+total+' золотых.')}else{if((state.resources[key]||0)<qty){addLog('На складе недостаточно ресурса для продажи.');render();return}state.resources[key]-=qty;state.resources.gold+=total;addLog('Продано '+qty+' ед. ресурса «'+tradeGoods[key].label+'» за '+total+' золотых.')}render()}
 function afford(cost){return Object.entries(cost||{}).every(([k,v])=>(state.resources[k]||0)>=v)}
@@ -114,6 +164,21 @@ function render(){
  const patrol=council.querySelector('[data-patrol]');if(patrol)patrol.addEventListener('click',togglePatrols);
  council.querySelectorAll('[data-raid]').forEach(btn=>btn.addEventListener('click',()=>resolveRaid(btn.dataset.raid)));
  }
+
+ const diplomacy=$('diplomacy');if(diplomacy){
+  diplomacy.innerHTML='<div class="realm-diplomacy-grid">'+realms.map(realm=>{
+   const d=state.diplomacy[realm.id],status=d.alliance?'Союзник':d.tradePact?'Торговый партнёр':d.relation>=60?'Дружелюбные отношения':d.relation>=35?'Нейтралитет':'Напряжённые отношения';
+   return '<article class="foreign-realm"><div class="foreign-head"><span class="foreign-icon">'+realm.icon+'</span><div><b>'+realm.name+'</b><small>'+status+'</small></div></div><p>'+realm.desc+'</p><div class="relation-track"><i style="width:'+d.relation+'%"></i></div><div class="relation-label">Доверие <b>'+d.relation+'/100</b></div><div class="diplomacy-actions"><button data-envoy="'+realm.id+'" '+(d.cooldown?'disabled':'')+'>Послать посла · 4 🪵 3 🥖</button><button data-treaty="trade" data-realm="'+realm.id+'" '+(d.tradePact||!hasMarket()||d.relation<50?'disabled':'')+'>'+(d.tradePact?'✓ Торговый договор':'Торговый договор · 15 🪙')+'</button><button data-treaty="alliance" data-realm="'+realm.id+'" '+(d.alliance||tierIndex(state.cityTier)<tierIndex('town')||d.relation<80?'disabled':'')+'>'+(d.alliance?'✓ Союз заключён':'Предложить союз · 25 🪙')+'</button></div><small class="realm-cooldown">'+(d.cooldown?'Посол вернётся через '+d.cooldown+' мес.':'Посольство готово к отправке')+'</small></article>'
+  }).join('')+'</div>';
+  diplomacy.querySelectorAll('[data-envoy]').forEach(btn=>btn.addEventListener('click',()=>sendEnvoy(btn.dataset.envoy)));
+  diplomacy.querySelectorAll('[data-treaty]').forEach(btn=>btn.addEventListener('click',()=>signTreaty(btn.dataset.realm,btn.dataset.treaty)));
+ }
+ const commission=$('commission');if(commission){
+  const q=state.royal.commission,have=q?(state.resources[q.resource]||0):0;
+  commission.innerHTML=q?'<div class="commission-card"><div class="commission-symbol">'+q.icon+'</div><div class="commission-copy"><small>АКТИВНОЕ ПОРУЧЕНИЕ</small><b>'+q.title+'</b><span>Собрать: '+q.amount+' · В наличии: '+have+' · Награда: '+q.reward+' 🪙</span></div><button data-complete-commission '+(have<q.amount?'disabled':'')+'>Выполнить</button></div>':'<div class="peace-status">Совет готовит новое поручение.</div>';
+  const complete=commission.querySelector('[data-complete-commission]');if(complete)complete.addEventListener('click',completeCommission);
+ }
+
  const market=$('market');if(market){const available=hasMarket(),caravan=state.caravan.arrived;market.innerHTML='<div class="market-status"><span class="market-emblem">🐎</span><div><b>'+(available?(caravan?'Караван прибыл в Эльдорию':'Рынок открыт'):'Торговля пока недоступна')+'</b><small>'+(available?(caravan?'Гости привезли товары и готовы к обмену':'Следующий караван через '+state.caravan.months+' мес.'):'Построй рынок, чтобы открыть торговлю')+'</small></div></div><div class="trade-list">'+Object.entries(tradeGoods).map(([k,g])=>'<div class="trade-row"><span class="trade-good">'+g.icon+' '+g.label+'<small>Пакет 5 ед. · купить: '+(tradePrice(k,'buy')*5)+' 🪙 / продать: '+(tradePrice(k,'sell')*5)+' 🪙</small></span><span class="trade-actions"><button data-trade="buy" data-good="'+k+'" '+(!available?'disabled':'')+'>Купить</button><button data-trade="sell" data-good="'+k+'" '+(!available?'disabled':'')+'>Продать</button></span></div>').join('')+'</div>';market.querySelectorAll('[data-trade]').forEach(btn=>btn.addEventListener('click',()=>trade(btn.dataset.good,btn.dataset.trade)))}
  $('log').innerHTML=state.log.slice(0,5).map((s,i)=>'<div class="log-entry"><time>Запись '+(state.log.length-i)+'</time>'+s+'</div>').join('');
  $('selectionLabel').textContent=state.selected===null?'Выбери клетку для постройки':'Клетка '+(state.selected+1)+' · '+(state.tiles[state.selected]?Buildings[state.tiles[state.selected].type].name:'свободна');
@@ -138,6 +203,9 @@ function month(){
  r.gold=Math.max(0,r.gold+tax-upkeep);
  if(tax||upkeep)addLog('Казна: налоги +'+tax+' 🪙, содержание и дозор −'+upkeep+' 🪙.');
  if(state.royal.policy==='low')state.happiness=Math.min(100,state.happiness+2);else if(state.royal.policy==='high')state.happiness=Math.max(0,state.happiness-2);
+ const treatyIncome=Object.values(state.diplomacy).filter(d=>d.tradePact).length*2;if(treatyIncome){r.gold+=treatyIncome;addLog('Торговые договоры принесли '+treatyIncome+' золотых пошлин.')}
+ if(Object.values(state.diplomacy).some(d=>d.alliance))state.happiness=Math.min(100,state.happiness+1);
+ for(const d of Object.values(state.diplomacy)){if(d.cooldown>0)d.cooldown--}
  const elapsed=(state.year-1)*12+state.month;
  if(state.royal.raidIn>0){state.royal.raidIn=0;const power=2+Math.min(4,Math.floor(state.population/6));state.royal.raid={power,loss:8+power*3,ransom:10+power*4,reward:5+power*2};addLog('Разбойники подошли к воротам! Совет должен решить: дать бой или заплатить выкуп.')}
  else if(elapsed>=4&&elapsed%5===0){state.royal.raidIn=1;addLog('Дозорные заметили подозрительных всадников на тракте. Возможно нападение в следующем месяце.')}
