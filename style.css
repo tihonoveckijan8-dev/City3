@@ -16,3 +16,7 @@
 @media(max-width:520px){.time-display{display:none}}
 
 .staffing{display:block;color:var(--green)!important;margin-top:4px}
+
+/* Trading post: compact, readable market rows with clear transaction actions. */
+.market-panel{margin-top:16px}.market-status{display:flex;align-items:center;gap:12px;padding:13px;background:#111c19;border:1px solid #314139;border-radius:8px;margin-bottom:12px}.market-emblem{font-size:27px}.market-status b{display:block;font-size:12px}.market-status small{display:block;color:var(--muted);font-size:10px;margin-top:4px}.trade-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.trade-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px;background:#111c19;border:1px solid #26372f;border-radius:7px;min-width:0}.trade-good{font-size:11px;min-width:0}.trade-good small{display:block;color:var(--muted);font-size:9px;margin-top:4px}.trade-actions{display:flex;gap:5px;flex-shrink:0}.trade-actions button{border:1px solid #8ea77c55;border-radius:5px;background:#26382d;color:var(--text);font:600 9px 'DM Sans',sans-serif;padding:7px 8px;cursor:pointer}.trade-actions button:hover:not(:disabled){border-color:var(--gold);background:#354733}.trade-actions button:disabled{opacity:.35;cursor:not-allowed}
+@media(max-width:650px){.trade-list{grid-template-columns:1fr}.market-panel .panel-head{align-items:start;flex-direction:column}}
