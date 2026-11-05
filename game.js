@@ -10,7 +10,7 @@ const fresh=()=>({month:1,year:1,season:0,day:1,clock:7*60,tiles:copy(World.init
 let state=Save.load()||fresh();
 const seasons=['Весна','Лето','Осень','Зима'],names=Object.keys(Buildings),dayNames=['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'];
 state.people=Array.isArray(state.people)?state.people:copy(initialPeople);
-state.tiles=state.tiles||copy(World.initial);state.resources=state.resources||{wood:34,stone:20,gold:24,food:34,grain:0,flour:0};
+state.tiles=state.tiles||copy(World.initial);\n// WHY: migrate only the untouched original starter layout; preserve any player-built structures.\nif(state.tiles[38]?.type==='road'&&state.tiles[39]?.type==='house'&&state.tiles[40]?.type==='house'&&state.tiles[41]?.type==='road'&&state.tiles[42]?.type==='road'&&state.tiles[43]?.type==='road'){[38,39,40,41,42,43].forEach(id=>delete state.tiles[id]);Object.assign(state.tiles,copy(World.initial))}\nstate.resources=state.resources||{wood:34,stone:20,gold:24,food:34,grain:0,flour:0};
 state.log=state.log||[];state.clock=Number.isFinite(state.clock)?state.clock:420;state.day=state.day||1;
 state.people.forEach((p,i)=>{p.id=p.id||i+1;p.home=p.home??(i<4?31:49);p.workplace=p.workplace??null;p.pos=p.pos??p.home;p.route=Array.isArray(p.route)?p.route:[];p.routeIndex=p.routeIndex||0;p.desiredTarget=p.desiredTarget??null;p.status=p.status||'resting';p.walkTicks=p.walkTicks||0});
 function addLog(s){state.log.unshift(s);state.log=state.log.slice(0,8)}
