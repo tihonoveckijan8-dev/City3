@@ -142,6 +142,7 @@ function fieldEncounter(playerArmy,enemyArmy,provinceId){
   if(!Object.values(playerArmy.troops).some(n=>n>0))data.fieldArmies=data.fieldArmies.filter(a=>a.id!==playerArmy.id);
   data.enemyArmies=data.enemyArmies.filter(a=>a.id!==enemyArmy.id);
   warNote('Перехват у «'+byId[provinceId].name+'»: отряд №'+playerArmy.id+' разбил войско '+rivalInfo[enemyArmy.rival].name+'.');
+  data.enemyForces[enemyArmy.rival]=Math.max(3,(data.enemyForces[enemyArmy.rival]||10)-3);
   data.treasury+=5;data.morale=Math.min(100,data.morale+3);
   return data.fieldArmies.some(a=>a.id===playerArmy.id);
  }
@@ -234,7 +235,7 @@ function prepareInvasion(){
 function resolveInvasion(tactic='balanced'){
  const event=data.invasion;if(!event)return;
  const p=byId[event.target],r=rivalInfo[event.rival];
- if(!p||!isOwned(p.id)){data.invasion=null;return}
+ if(!p||!isOwned(p.id)){if(event.enemyArmyId)data.enemyArmies=data.enemyArmies.filter(a=>a.id!==event.enemyArmyId);data.invasion=null;return}
  const typed=Object.entries(data.troops).reduce((sum,[type,count])=>sum+count*(unitTypes[type]?.power||1),0);
  const generals=data.generals.reduce((sum,g)=>sum+g.command,0);
  const garrison=data.garrisons[p.id]||0;
@@ -274,6 +275,7 @@ function negotiateTruce(){
  data.treasury-=cost;data.influence-=influence;data.truces[e.rival]=4;
  data.enemyForces[e.rival]=Math.max(4,(data.enemyForces[e.rival]||10)-2);
  warNote('Заключено перемирие с державой '+rivalInfo[e.rival].name+' на 4 месяца. Цена мира: '+cost+' золотых и '+influence+' влияния.');
+ if(e.enemyArmyId)data.enemyArmies=data.enemyArmies.filter(a=>a.id!==e.enemyArmyId);
  data.invasion=null;save();render();
 }
 function render(){
