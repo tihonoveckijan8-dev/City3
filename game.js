@@ -44,7 +44,12 @@ function updateCitizen(c){
  const target=desiredFor(c);
  if(c.desiredTarget!==target){c.desiredTarget=target;routeTo(c,target)}
  if(c.status==='walking'&&c.route.length){
-  c.walkTicks++;if(c.walkTicks>=2){c.walkTicks=0;c.routeIndex++;if(c.routeIndex<c.route.length)c.pos=c.route[c.routeIndex];else{c.pos=target;c.route=[];c.routeIndex=0;c.status=target===c.home?'resting':'working'}}}
+  c.walkTicks++;
+  if(c.walkTicks>=2){
+   c.walkTicks=0;c.routeIndex++;
+   if(c.routeIndex<c.route.length)c.pos=c.route[c.routeIndex];
+   else{c.pos=target;c.route=[];c.routeIndex=0;c.status=target===c.home?'resting':'working'}
+  }
  }else if(c.status==='blocked'&&c.desiredTarget!==target)routeTo(c,target);
  else if(c.status!=='blocked')c.status=target===c.home?'resting':'working';
 }
