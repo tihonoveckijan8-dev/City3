@@ -16,6 +16,7 @@ townhall:{name:'Ратуша',icon:'🏛️',desc:'Сердце управлен
 wall:{name:'Крепостная стена',icon:'🧱',desc:'Защищает городские кварталы',cost:{wood:2,stone:3},minTier:'village'},
 gate:{name:'Городские ворота',icon:'🚪',desc:'Проход сквозь крепостную стену',cost:{wood:8,stone:10},minTier:'village'},
 watchtower:{name:'Сторожевая башня',icon:'🗼',desc:'Дозор над окрестностями',cost:{wood:12,stone:14},jobs:2,jobTitle:'Стражник',minTier:'village'},
-keep:{name:'Каменный замок',icon:'🏰',desc:'Символ власти и центр королевства',cost:{wood:40,stone:50,gold:35},jobs:4,jobTitle:'Стражник',minTier:'town'}
+keep:{name:'Каменный замок',icon:'🏰',desc:'Символ власти и центр королевства',cost:{wood:40,stone:50,gold:35},jobs:4,jobTitle:'Стражник',minTier:'town'},
+barracks:{name:'Казармы',icon:'⚔️',desc:'Обучает и размещает городскую стражу',cost:{wood:22,stone:18,gold:12},jobs:3,jobTitle:'Стражник',minTier:'village'}
 };
 })();
