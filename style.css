@@ -14,3 +14,5 @@
 .person{min-width:0}.person>span:last-child{min-width:0}.person small{font-size:9px}.person .status{color:var(--gold)}
 .people{max-height:270px;overflow:auto;padding-right:4px}
 @media(max-width:520px){.time-display{display:none}}
+
+.staffing{display:block;color:var(--green)!important;margin-top:4px}
