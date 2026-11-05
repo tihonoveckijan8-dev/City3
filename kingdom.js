@@ -75,11 +75,11 @@ const rivalInfo={ashford:{name:'Эшфорд',key:'ashford',icon:'🦅'},silver:
 
 function fieldPower(army){return Object.entries(army.troops||{}).reduce((sum,[type,count])=>sum+count*(unitTypes[type]?.power||1),0)}
 function deployFieldArmy(){
- const p=byId[data.selected];if(!p||!isOwned(p.id)||data.army<3)return;
- const troops={infantry:0,spearmen:0,archers:0,cavalry:0};let left=3;
+ const p=byId[data.selected];if(!p||!isOwned(p.id)||data.army<5)return;
+ const troops={infantry:0,spearmen:0,archers:0,cavalry:0};let left=5;
  for(const type of ['spearmen','infantry','archers','cavalry']){const take=Math.min(data.troops[type],left);troops[type]=take;data.troops[type]-=take;left-=take}
  if(left)return;
- data.army-=3;
+ data.army-=5;
  data.fieldArmies.push({id:data.nextFieldArmyId++,location:p.id,target:null,troops,morale:data.morale});
  warNote('Отряд из трёх воинов сформирован в провинции «'+p.name+'».');
  save();render();
@@ -95,8 +95,8 @@ function resolveFieldArrival(army,target){
  const p=byId[target];if(!p)return;
  if(p.rival&&!isOwned(target)){
   const key=p.rival==='Эшфорд'?'ashford':'silver';
-  const attack=fieldPower(army)*(0.7+(army.morale||70)/250)+data.generals.reduce((n,g)=>n+g.command*.35,0);
-  const defense=6+(data.enemyForces[key]||10)*.7+(p.id==='coast'?3:0);
+  const attack=fieldPower(army)*(1.05+(army.morale||70)/250)+data.generals.reduce((n,g)=>n+g.command*.35,0);
+  const defense=3+(data.enemyForces[key]||10)*.3+(p.id==='coast'?2:0);
   if(attack>=defense){
    data.owned.push(target);data.discovered.push(target);data.claimed++;data.treasury+=12;data.influence+=3;
    data.enemyForces[key]=Math.max(3,(data.enemyForces[key]||10)-3);
@@ -212,7 +212,7 @@ function render(){
  if(isOwned(p.id)){
  const stationed=data.fieldArmies.filter(a=>a.location===p.id);
  const armyRows=stationed.map(a=>'<div class="field-army-row"><span>⚔️ Отряд №'+a.id+' · '+Object.values(a.troops).reduce((n,v)=>n+v,0)+' воинов · сила '+Math.round(fieldPower(a))+(a.target?' · марш к '+byId[a.target].name:' · ожидает приказа')+'</span><div class="field-army-orders">'+neighbors(p).filter(q=>isKnown(q.id)||q.rival).map(q=>'<button type="button" data-field-move="'+a.id+'" data-field-target="'+q.id+'">→ '+q.name+'</button>').join('')+'<button type="button" data-field-disband="'+a.id+'">Распустить</button></div></div>').join('');
- action+='<div class="field-command"><b>Полевые отряды</b><button type="button" data-field-deploy '+(data.army<3?'disabled':'')+'>Выделить отряд · 3 воина</button>'+(armyRows||'<small>В этой провинции нет полевых отрядов.</small>')+'</div>';
+ action+='<div class="field-command"><b>Полевые отряды</b><button type="button" data-field-deploy '+(data.army<5?'disabled':'')+'>Выделить отряд · 5 воинов</button>'+(armyRows||'<small>В этой провинции нет полевых отрядов.</small>')+'</div>';
  }
  else if(!isKnown(p.id))action='<button class="kingdom-action" data-action="scout" '+(canScout(p)?'':'disabled')+'>Разведать земли · 8 🪙 · 5 влияния</button><small class="kingdom-hint">Для разведки нужна соседняя ваша провинция, 8 золотых и 5 влияния.</small>';
  else action='<button class="kingdom-action" data-action="claim" '+(canClaim(p)?'':'disabled')+'>Присоединить · '+p.cost+' 🪙 · 3 влияния</button><small class="kingdom-hint">После присоединения земля начнёт приносить доход короне.</small>';
