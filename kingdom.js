@@ -22,7 +22,7 @@ const provinces=[
  {id:'sunhills',name:'Солнечные Холмы',icon:'☀️',kind:'Холмы',desc:'Мягкий климат и камень для больших строек.',x:4,y:4,links:['deepwood','southmeadow'],cost:24,gold:4,influence:1,resource:'Камень'}
 ];
 const byId=Object.fromEntries(provinces.map(p=>[p.id,p]));
-const initial=()=>({owned:['eldoria'],discovered:['eldoria','oldroad','silverford','ironpeak','riverlands','southmeadow'],selected:'eldoria',treasury:55,influence:24,months:0,claimed:0});
+const initial=()=>({owned:['eldoria'],discovered:['eldoria','oldroad','silverford','ironpeak','riverlands','southmeadow'],selected:'eldoria',treasury:55,influence:24,months:0,claimed:0,army:0,morale:80,siege:null,warLog:[]});
 let data;
 try{data=JSON.parse(localStorage.getItem(KEY)||'null')}catch{data=null}
 data=data&&Array.isArray(data.owned)&&Array.isArray(data.discovered)?data:initial();
