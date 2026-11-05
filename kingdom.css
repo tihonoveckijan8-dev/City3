@@ -6,3 +6,18 @@
 /* Royal army and siege command */
 .army-command{margin-top:14px;padding:15px;background:#151f1b;border:1px solid #685638;border-radius:8px}.army-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}.army-heading small,.siege-targets>small{font-size:8px;letter-spacing:.16em;color:var(--gold)}.army-heading h3{font:600 23px 'Cormorant Garamond',serif;margin:3px 0}.army-heading p{margin:0;color:var(--muted);font-size:9px}.army-crest{font-size:35px;color:#c7a45d}.army-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:13px 0}.army-metrics span{padding:9px;background:#202c25;border-radius:5px;color:var(--muted);font-size:9px}.army-metrics b{display:block;margin-top:4px;color:#e5d5ad;font:600 17px 'Cormorant Garamond',serif}.army-actions button,.siege-target button{border:1px solid #a88a52;border-radius:5px;padding:9px 12px;background:#51452d;color:#f0dfb7;font-size:9px;font-weight:600;cursor:pointer}.army-actions button:disabled,.siege-target button:disabled{opacity:.35;cursor:not-allowed}.siege-targets{margin-top:13px}.siege-target{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #ffffff12;color:var(--text);font-size:10px}.siege-target span small{display:block;margin-top:3px;color:var(--muted);font-size:8px}.siege-active{display:grid;gap:5px;margin-top:12px;padding:11px;border:1px solid #936f3d;background:#352d20;border-radius:6px;color:#e7d4a5;font-size:10px}.siege-active span{color:#c1b69a;font-size:9px}.war-chronicle{display:grid;gap:5px;margin-top:10px}.war-chronicle p{margin:0;padding:7px 9px;border-left:2px solid #927748;background:#202a24;color:#b7c0b0;font-size:8px;line-height:1.5}
 @media(max-width:520px){.army-command{padding:11px}.army-metrics{gap:5px}.army-metrics span{padding:7px;font-size:8px}.army-metrics b{font-size:15px}.siege-target{align-items:flex-start}.siege-target button{max-width:115px}}
+
+/* Expanded royal command: distinct troop classes, commanders and province garrisons. */
+.troop-roster{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:12px 0}
+.troop-card{display:grid;gap:6px;padding:9px;background:#202c25;border:1px solid #3d4b3d;border-radius:6px;color:#d9d5c5;font-size:9px}
+.troop-card b{font:600 20px 'Cormorant Garamond',serif;color:#e8d4a4}
+.troop-card button,.subhead button,.garrison-row button{border:1px solid #8e7548;border-radius:4px;padding:7px;background:#403a2a;color:#e9d7ad;font-size:8px;cursor:pointer}
+.troop-card button:disabled,.subhead button:disabled,.garrison-row button:disabled{opacity:.35;cursor:not-allowed}
+.general-roster,.garrison-roster{margin-top:12px;padding-top:10px;border-top:1px solid #ffffff18}
+.subhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px;color:#e4d4ac;font-size:10px}
+.subhead small{color:var(--muted);font-size:8px;font-weight:400}
+.general-card,.garrison-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #ffffff12;color:#d7d3c3;font-size:9px}
+.general-card span{color:var(--muted);font-size:8px}
+.garrison-row span{flex:1}
+.garrison-row span b{margin-left:6px;color:#e6d2a4}
+@media(max-width:650px){.troop-roster{grid-template-columns:1fr 1fr}.general-card{align-items:flex-start;flex-direction:column}.subhead{align-items:flex-start;flex-direction:column}}
