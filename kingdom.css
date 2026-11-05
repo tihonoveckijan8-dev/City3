@@ -75,3 +75,6 @@
 .enemy-army-row{display:grid;grid-template-columns:1fr auto;gap:4px 8px;padding:8px 0;border-top:1px solid #ffffff16;color:#ead9c8;font-size:9px}
 .enemy-army-row>b{color:#e6a982}
 .enemy-army-row>small,.enemy-armies>small{grid-column:1/-1;color:#bba99b;font-size:8px;line-height:1.5}
+
+/* Siege logistics: clear phase, supply level and reinforcement order. */
+.siege-active .siege-supply{height:7px;overflow:hidden;border-radius:8px;background:#171f1b;margin:2px 0 5px}.siege-active .siege-supply i{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,#a34d36,#c5a15b);transition:width .3s}.siege-active button{justify-self:start;padding:8px 10px;border:1px solid #9c8050;border-radius:5px;background:#4b402b;color:#f0dfb7;font-size:9px;font-weight:700;cursor:pointer}.siege-active button:disabled{opacity:.35;cursor:not-allowed}
