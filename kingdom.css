@@ -93,3 +93,20 @@
 
 /* Noble houses and faction politics */
 .noble-houses{margin-top:15px}.noble-houses-title{display:flex;flex-direction:column;gap:3px;margin-bottom:9px}.noble-houses-title b{color:#ead9b4;font:600 17px 'Cormorant Garamond',serif}.noble-houses-title small{color:var(--muted);font-size:8px}.noble-house{padding:11px;margin-top:8px;background:#202d24;border:1px solid #4d5a43;border-radius:6px}.noble-house-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.noble-house-head span{display:flex;flex-direction:column;gap:3px}.noble-house-head small{font-size:7px;letter-spacing:.1em;color:var(--gold)}.noble-house-head b{font:600 17px 'Cormorant Garamond',serif;color:#f0e2bd}.noble-house-head strong{font:600 19px 'Cormorant Garamond',serif;color:#e8d6aa;text-align:right}.noble-house-head strong small{display:block;color:var(--muted);font:8px sans-serif}.noble-house p{margin:6px 0;color:var(--muted);font-size:8px}.noble-house-bars{display:grid;grid-template-columns:1fr 1fr;gap:7px}.noble-house-bars i{height:4px;background:#101a14;border-radius:6px;overflow:hidden}.noble-house-bars em{display:block;height:100%;background:#9eb77f}.noble-house-bars .house-influence em{background:#b99a5d}.noble-house-foot{display:flex;justify-content:space-between;gap:8px;margin-top:6px;color:var(--muted);font-size:7px}.noble-house-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}.noble-house-actions button{padding:7px 9px;background:#353a2b;border:1px solid #776641;border-radius:4px;color:#ead9ae;font-size:8px;cursor:pointer}.noble-house-actions button:disabled{opacity:.4}@media(max-width:520px){.noble-house{padding:9px}.noble-house-actions button{flex:1 1 45%;line-height:1.4}.noble-house-foot{flex-direction:column;gap:3px}}
+
+/* Royal edicts and court events */
+.royal-edicts,.court-event{margin-top:14px;padding:15px;background:#18241d;border:1px solid #806b43;border-radius:8px}
+.edict-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.edict-option{display:grid;gap:6px;padding:11px;background:#223027;border:1px solid #435342;border-radius:6px}
+.edict-option>b,.edict-active>b{color:#ead9b4;font:600 17px 'Cormorant Garamond',serif}
+.edict-option p,.court-event p{margin:0;color:var(--muted);font-size:9px;line-height:1.55}
+.edict-option small,.edict-active span{color:#b9b59f;font-size:8px;line-height:1.5}
+.edict-option button,.court-event-actions button{padding:8px 9px;border:1px solid #927747;border-radius:4px;background:#49412d;color:#ead9b4;font-size:8px;cursor:pointer}
+.edict-option button:disabled{opacity:.35}
+.edict-active{display:grid;gap:7px;margin-top:12px;padding:12px;background:#28372c;border:1px solid #77814f;border-radius:6px}
+.court-event{background:#30251e;border-color:#98664b}
+.court-event>small{color:#d6a46d;font-size:8px;letter-spacing:.15em}
+.court-event h3{margin:5px 0;font:600 21px 'Cormorant Garamond',serif;color:#f0dfbf}
+.court-event-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+.court-event-actions button{background:#51402e;border-color:#a7794f}
+@media(max-width:520px){.edict-grid{grid-template-columns:1fr}.royal-edicts,.court-event{padding:11px}.court-event-actions{display:grid}.court-event-actions button{width:100%}}

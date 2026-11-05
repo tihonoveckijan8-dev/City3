@@ -76,6 +76,12 @@ const nobleDefaults={
 data.court.houses=data.court.houses&&typeof data.court.houses==='object'?data.court.houses:{};
 Object.entries(nobleDefaults).forEach(([key,base])=>{const h=data.court.houses[key]=data.court.houses[key]&&typeof data.court.houses[key]==='object'?data.court.houses[key]:{...base};Object.keys(base).forEach(k=>{if(h[k]===undefined)h[k]=base[k]});h.loyalty=Number.isFinite(h.loyalty)?Math.max(0,Math.min(100,h.loyalty)):base.loyalty;h.influence=Number.isFinite(h.influence)?Math.max(0,Math.min(100,h.influence)):base.influence;h.policy=['privileges','centralize'].includes(h.policy)?h.policy:'balanced'});
 
+// WHY: royal edicts and timed petitions are isolated in court state so older saves migrate without loss.
+data.court.edict=data.court.edict&&typeof data.court.edict==='object'?data.court.edict:null;
+if(data.court.edict&&!['trade','levy','army','charter'].includes(data.court.edict.type))data.court.edict=null;
+if(data.court.edict){data.court.edict.months=Number.isFinite(data.court.edict.months)?Math.max(0,data.court.edict.months):0;data.court.edict.duration=6}
+data.court.event=data.court.event&&typeof data.court.event==='object'?data.court.event:null;
+data.court.eventCooldown=Number.isFinite(data.court.eventCooldown)?Math.max(0,data.court.eventCooldown):2;
 data.court.council=data.court.council&&typeof data.court.council==='object'?data.court.council:{...courtDefaults.council};
 Object.entries(courtDefaults.council).forEach(([key,value])=>{if(typeof data.court.council[key]!=='string')data.court.council[key]=value});
 // WHY: the royal house has its own migration so dynasty features never reset territorial or military progress.
@@ -333,6 +339,33 @@ function negotiateTruce(){
  if(e.enemyArmyId)data.enemyArmies=data.enemyArmies.filter(a=>a.id!==e.enemyArmyId);
  data.invasion=null;save();render();
 }
+
+const edictCatalog={
+ trade:{name:'Свободная торговля',desc:'Снизить пошлины и поддержать купеческие караваны.',effect:'Казна +3 золота в месяц; купцы +1 лояльности, военная знать −0.5.',treasury:3,house:'vale',loyalty:1,other:'thorn',otherLoyalty:-0.5},
+ levy:{name:'Чрезвычайный сбор',desc:'Увеличить сборы с земель и торговых ворот.',effect:'Казна +7 золота в месяц; стабильность −1, лояльность купцов −2.',treasury:7,stability:-1,house:'vale',loyalty:-2},
+ army:{name:'Военная реформа',desc:'Усилить снабжение и подготовку королевского войска.',effect:'Боевой дух +2 в месяц; казна −3 золота, военная знать +1.',treasury:-3,morale:2,house:'thorn',loyalty:1},
+ charter:{name:'Земельная хартия',desc:'Подтвердить права землевладельцев и местных общин.',effect:'Стабильность +2 и землевладельцы +2; казна −2 золота.',treasury:-2,stability:2,house:'dawn',loyalty:2}
+};
+function enactEdict(type){const c=data.court,e=edictCatalog[type];if(!e||c.edict||data.treasury<8||data.influence<3)return;data.treasury-=8;data.influence-=3;c.edict={type,months:0,duration:6};warNote('Королевский указ принят: «'+e.name+'». Он будет действовать шесть месяцев.');save();render()}
+function resolveCourtEvent(choice){const c=data.court,event=c.event;if(!event)return;const h=c.houses;
+ const effects={
+ petition:{grant:()=>{data.treasury-=8;c.stability=Math.min(100,c.stability+7);Object.values(h).forEach(x=>x.loyalty=Math.min(100,x.loyalty+2));return 'Корона выделила средства на прошение: двор успокоился, но казна понесла расходы.'},deny:()=>{c.plotRisk=Math.min(100,c.plotRisk+9);h.dawn.loyalty=Math.max(0,h.dawn.loyalty-7);return 'Отказ усилил недовольство землевладельцев и риск интриг.'}},
+ trade:{arbitrate:()=>{data.treasury+=5;h.vale.loyalty=Math.min(100,h.vale.loyalty+5);c.stability=Math.min(100,c.stability+2);return 'Компромисс восстановил торговлю и принёс доход казне.'},tax:()=>{data.treasury+=14;h.vale.loyalty=Math.max(0,h.vale.loyalty-10);return 'Дополнительный сбор пополнил казну, но купцы запомнили решение.'}},
+ border:{reinforce:()=>{data.treasury-=10;data.morale=Math.min(100,data.morale+8);h.thorn.loyalty=Math.min(100,h.thorn.loyalty+5);return 'Пограничные гарнизоны усилены, военная знать довольна.'},negotiate:()=>{data.influence+=5;c.stability=Math.min(100,c.stability+3);h.thorn.loyalty=Math.max(0,h.thorn.loyalty-4);return 'Посольство выиграло время и укрепило влияние короны.'}},
+ faith:{festival:()=>{data.treasury-=9;c.stability=Math.min(100,c.stability+9);data.dynasty.legitimacy=Math.min(100,data.dynasty.legitimacy+3);return 'Праздник укрепил единство королевства и авторитет монарха.'},lands:()=>{data.treasury-=3;h.dawn.loyalty=Math.min(100,h.dawn.loyalty+5);c.plotRisk=Math.max(0,c.plotRisk-5);return 'Земельная уступка удовлетворила духовенство и землевладельцев.'}}
+ };
+ const apply=effects[event.type]?.[choice];if(!apply)return;const msg=apply();c.event=null;c.eventCooldown=4;warNote('КОРОЛЕВСКОЕ СОБЫТИЕ: '+msg);save();render()
+}
+function courtEventForMonth(){const c=data.court;if(c.event||c.eventCooldown>0||c.months<3||c.months%4!==0)return;
+ const events=[
+ {type:'petition',title:'Прошение землевладельцев',desc:'Знать просит восстановить старые права и выделить средства на защиту сельских владений.',options:[['grant','Удовлетворить прошение · 8 🪙'],['deny','Отказать короне уступать']]},
+ {type:'trade',title:'Торговый спор в Серебряном Броде',desc:'Купеческие дома спорят с королевскими сборщиками. Караваны грозят обойти ваши земли.',options:[['arbitrate','Назначить арбитраж'],['tax','Взыскать пошлину']]},
+ {type:'border',title:'Тревога на восточной границе',desc:'Разведчики сообщают о движении войск Эшфорда. Совет ждёт решения короля.',options:[['reinforce','Усилить гарнизоны · 10 🪙'],['negotiate','Отправить посольство']]},
+ {type:'faith',title:'Требование храмового совета',desc:'Священнослужители предлагают устроить общекоролевский праздник или подтвердить права храмовых земель.',options:[['festival','Провести праздник · 9 🪙'],['lands','Подтвердить земли · 3 🪙']]}
+ ];
+ c.event=events[(Math.floor(c.months/4)-1)%events.length];
+}
+
 function render(){
  const p=byId[data.selected]||byId.eldoria;
  const map=provinces.map(q=>{
@@ -370,6 +403,14 @@ function render(){
   const courtPanel='<section class="court-politics"><div class="court-heading"><div><small>ВНУТРЕННЯЯ ПОЛИТИКА</small><h3>Королевский совет</h3><p>Назначай доверенных людей, удерживай знать в равновесии и следи за придворными фракциями.</p></div><div class="court-seal">⚜</div></div><div class="court-stats"><span>Стабильность двора<b>'+court.stability+'%</b></span><span>Риск интриг<b>'+court.plotRisk+'%</b></span></div><div class="court-meter"><i><em style="width:'+court.stability+'%"></em></i><i class="risk"><em style="width:'+court.plotRisk+'%"></em></i></div><div class="court-council-list">'+councilRows+'</div><div class="court-actions"><button type="button" data-court-feast '+(data.treasury<12?'disabled':'')+'>Устроить королевский пир · 12 🪙</button>'+(court.plot?'<button type="button" data-court-investigate>Раскрыть заговор · 8 влияния</button>':'<small>При дворе пока нет раскрытых заговоров.</small>')+'</div>'+(court.plot?'<div class="court-plot"><b>⚠ '+court.plot.title+'</b><span>'+court.plot.description+'</span><small>Обнаружено '+court.plot.months+' мес. назад. Расследуй, пока заговорщики не укрепились.</small></div>':'<div class="court-status">'+(court.plotRisk>=60?'В воздухе сгущаются интриги. Совет нуждается во внимании.':court.stability>=70?'Двор сохраняет спокойствие и доверяет короне.':'Двору требуется внимание монарха.')+'</div>')+'</section>';
   const courtPanelWithHouses=courtPanel.replace('</section>','<div class="noble-houses"><div class="noble-houses-title"><b>Влиятельные дворянские дома</b><small>Их поддержка определяет устойчивость короны</small></div>'+houseCards+'</div></section>');
   root.insertAdjacentHTML('beforeend',courtPanelWithHouses);
+ const edict=data.court.edict,edictOptions=Object.entries(edictCatalog).map(([key,e])=>'<article class="edict-option"><b>'+e.name+'</b><p>'+e.desc+'</p><small>'+e.effect+'</small><button type="button" data-edict="'+key+'" '+(edict||data.treasury<8||data.influence<3?'disabled':'')+'>Принять указ · 8 🪙 · 3 влияния</button></article>').join('');
+ const edictPanel='<section class="royal-edicts"><div class="court-heading"><div><small>ЗАКОН И ВОЛЯ КОРОНЫ</small><h3>Королевские указы</h3><p>Указы действуют шесть месяцев. Пока действует один указ, новый принять нельзя.</p></div><div class="court-seal">⚖</div></div>'+(edict?'<div class="edict-active"><b>Действует: '+edictCatalog[edict.type].name+'</b><span>Месяц '+(edict.months+1)+' из 6 · '+edictCatalog[edict.type].effect+'</span></div>':'<div class="edict-grid">'+edictOptions+'</div>')+'</section>';
+ root.insertAdjacentHTML('beforeend',edictPanel);
+ const event=data.court.event;
+ const eventPanel=event?'<section class="court-event"><small>СОБЫТИЕ КОРОЛЕВСТВА</small><h3>'+event.title+'</h3><p>'+event.desc+'</p><div class="court-event-actions">'+event.options.map(([key,label])=>'<button type="button" data-court-event="'+key+'">'+label+'</button>').join('')+'</div></section>':'';
+ if(eventPanel)root.insertAdjacentHTML('beforeend',eventPanel);
+ root.querySelectorAll('[data-edict]').forEach(btn=>btn.addEventListener('click',()=>enactEdict(btn.dataset.edict)));
+ root.querySelectorAll('[data-court-event]').forEach(btn=>btn.addEventListener('click',()=>resolveCourtEvent(btn.dataset.courtEvent)));
   root.querySelectorAll('[data-house-action]').forEach(btn=>btn.addEventListener('click',()=>manageNobleHouse(btn.dataset.house,btn.dataset.houseAction)));
   root.querySelectorAll('[data-council]').forEach(btn=>btn.addEventListener('click',()=>appointCouncillor(btn.dataset.council)));
   root.querySelector('[data-court-feast]')?.addEventListener('click',holdRoyalFeast);
@@ -403,6 +444,11 @@ root.querySelector('[data-field-deploy]')?.addEventListener('click',deployFieldA
 document.getElementById('nextMonth')?.addEventListener('click',()=>{
  if(data.invasion?.ready){warNote('Сражение ожидает приказа полководца. Выбери тактику обороны.');save();render();return}
  data.months++;
+ // WHY: court orders resolve monthly and expire automatically; events use a cooldown to avoid spam.
+ const activeEdict=data.court.edict;
+ if(activeEdict){const rule=edictCatalog[activeEdict.type];if(rule){data.treasury=Math.max(0,data.treasury+rule.treasury);if(rule.stability)data.court.stability=Math.max(0,Math.min(100,data.court.stability+rule.stability));if(rule.morale)data.morale=Math.max(0,Math.min(100,data.morale+rule.morale));if(rule.house)data.court.houses[rule.house].loyalty=Math.max(0,Math.min(100,data.court.houses[rule.house].loyalty+rule.loyalty));if(rule.other)data.court.houses[rule.other].loyalty=Math.max(0,Math.min(100,data.court.houses[rule.other].loyalty+rule.otherLoyalty));}activeEdict.months++;if(activeEdict.months>=activeEdict.duration){warNote('Срок королевского указа «'+edictCatalog[activeEdict.type].name+'» истёк. Совет может рассмотреть новую политику.');data.court.edict=null}}
+ if(data.court.eventCooldown>0)data.court.eventCooldown--;
+ courtEventForMonth();
  // WHY: court pressure advances with kingdom time; a warning appears before a plot can destabilize the realm.
  const court=data.court;court.months++;const councilCount=Object.keys(court.council).filter(k=>court.council[k]).length;
  court.stability=Math.max(0,Math.min(100,court.stability+(councilCount===4?1:0)+(data.dynasty.legitimacy>=70?0.3:-0.5)-(data.vassalStates&&Object.values(data.vassalStates).some(v=>v.rebellion)?3:0)));
