@@ -48,6 +48,9 @@ data.invasion=data.invasion&&typeof data.invasion.target==='string'?data.invasio
 // WHY: field detachments are saved separately from the reserve so marching never corrupts old troop counts.
 data.fieldArmies=Array.isArray(data.fieldArmies)?data.fieldArmies:[];
 data.nextFieldArmyId=Number.isFinite(data.nextFieldArmyId)?data.nextFieldArmyId:1;
+// WHY: hostile detachments persist independently so frontier pressure survives reloads.
+data.enemyArmies=Array.isArray(data.enemyArmies)?data.enemyArmies:[];
+data.nextEnemyArmyId=Number.isFinite(data.nextEnemyArmyId)?data.nextEnemyArmyId:1;
 data.truces.ashford=Number.isFinite(data.truces.ashford)?Math.max(0,data.truces.ashford):0;
 data.truces.silver=Number.isFinite(data.truces.silver)?Math.max(0,data.truces.silver):0;
 data.army=Object.values(data.troops).reduce((a,b)=>a+b,0);
@@ -81,7 +84,7 @@ function deployFieldArmy(){
  if(left)return;
  data.army-=5;
  data.fieldArmies.push({id:data.nextFieldArmyId++,location:p.id,target:null,troops,morale:data.morale});
- warNote('Отряд из трёх воинов сформирован в провинции «'+p.name+'».');
+ warNote('Отряд из пяти воинов сформирован в провинции «'+p.name+'».');
  save();render();
 }
 function orderFieldArmy(id,target){
@@ -93,6 +96,8 @@ function orderFieldArmy(id,target){
 }
 function resolveFieldArrival(army,target){
  const p=byId[target];if(!p)return;
+ const enemy=data.enemyArmies.find(a=>a.location===target);
+ if(enemy&&!fieldEncounter(army,enemy,target))return;
  if(p.rival&&!isOwned(target)){
   const key=p.rival==='Эшфорд'?'ashford':'silver';
   const attack=fieldPower(army)*(1.05+(army.morale||70)/250)+data.generals.reduce((n,g)=>n+g.command*.35,0);
@@ -126,6 +131,77 @@ function disbandFieldArmy(id){
  data.fieldArmies=data.fieldArmies.filter(a=>a.id!==id);
  warNote('Отряд №'+id+' распущен; воины вернулись в резерв.');
  save();render();
+}
+
+function fieldEncounter(playerArmy,enemyArmy,provinceId){
+ const playerPower=fieldPower(playerArmy)*(0.9+(playerArmy.morale||70)/300);
+ const enemyPower=enemyArmy.power||7;
+ if(playerPower>=enemyPower){
+  let casualtyTaken=false;
+  for(const type of ['infantry','spearmen','archers','cavalry'])if(playerArmy.troops[type]>0&&!casualtyTaken){playerArmy.troops[type]--;casualtyTaken=true}
+  if(!Object.values(playerArmy.troops).some(n=>n>0))data.fieldArmies=data.fieldArmies.filter(a=>a.id!==playerArmy.id);
+  data.enemyArmies=data.enemyArmies.filter(a=>a.id!==enemyArmy.id);
+  warNote('Перехват у «'+byId[provinceId].name+'»: отряд №'+playerArmy.id+' разбил войско '+rivalInfo[enemyArmy.rival].name+'.');
+  data.treasury+=5;data.morale=Math.min(100,data.morale+3);
+  return data.fieldArmies.some(a=>a.id===playerArmy.id);
+ }
+ const survivors={};
+ Object.entries(playerArmy.troops).forEach(([type,count])=>{survivors[type]=Math.floor(count*.35);data.troops[type]+=survivors[type];data.army+=survivors[type]});
+ data.fieldArmies=data.fieldArmies.filter(a=>a.id!==playerArmy.id);
+ enemyArmy.power=Math.max(2,enemyPower-Math.max(1,Math.floor(playerPower*.2)));
+ warNote('Перехват у «'+byId[provinceId].name+'» не удался. Отряд №'+playerArmy.id+' разбит; остатки вернулись в резерв.');
+ return false;
+}
+function routeBetween(start,goal){
+ const queue=[start],previous={[start]:null};
+ while(queue.length){
+  const current=queue.shift();if(current===goal)break;
+  (byId[current]?.links||[]).forEach(next=>{if(previous[next]===undefined){previous[next]=current;queue.push(next)}});
+ }
+ if(previous[goal]===undefined)return [];
+ const path=[];let at=goal;
+ while(at!==start){path.unshift(at);at=previous[at]}
+ return path;
+}
+function spawnEnemyArmy(){
+ if(data.invasion||data.enemyArmies.length>=2||data.months%3!==0)return;
+ const candidates=provinces.filter(p=>p.rival&&p.links.some(isOwned));
+ const available=candidates.filter(p=>{
+  const key=p.rival==='Эшфорд'?'ashford':'silver';
+  return (data.truces[key]||0)<=0&&!data.enemyArmies.some(a=>a.rival===key);
+ });
+ if(!available.length)return;
+ const p=available[Math.floor(Math.random()*available.length)];
+ const key=p.rival==='Эшфорд'?'ashford':'silver';
+ const power=Math.max(6,Math.round(4+(data.enemyForces[key]||10)*.42));
+ const army={id:data.nextEnemyArmyId++,rival:key,location:p.id,power,target:null,plan:['charge','volley','brace'][Math.floor(Math.random()*3)]};
+ data.enemyArmies.push(army);
+ warNote('Разведка обнаружила полевой отряд державы '+rivalInfo[key].name+' у провинции «'+p.name+'». Сила врага: '+power+'.');
+}
+function enemyTarget(army){
+ const candidates=data.owned.filter(id=>provinces.some(p=>p.id===id&&p.links.includes(army.location)));
+ if(candidates.length)return candidates[0];
+ return data.owned.map(id=>({id,path:routeBetween(army.location,id)})).filter(x=>x.path.length).sort((a,b)=>a.path.length-b.path.length)[0]?.id||null;
+}
+function advanceEnemyArmies(){
+ if(data.invasion)return;
+ data.enemyArmies.slice().forEach(enemy=>{
+  if(!data.enemyArmies.some(a=>a.id===enemy.id))return;
+  if(!enemy.target||!isOwned(enemy.target))enemy.target=enemyTarget(enemy);
+  if(!enemy.target)return;
+  const route=routeBetween(enemy.location,enemy.target);if(!route.length)return;
+  const next=route[0],interceptor=data.fieldArmies.find(a=>a.location===next);
+  if(interceptor){
+   const survived=fieldEncounter(interceptor,enemy,next);
+   if(!survived&&data.enemyArmies.some(a=>a.id===enemy.id))warNote('Вражеское войско продолжает марш после победы над перехватчиками.');
+   if(!data.enemyArmies.some(a=>a.id===enemy.id))return;
+  }
+  enemy.location=next;
+  if(isOwned(next)){
+   data.invasion={target:next,rival:enemy.rival,power:enemy.power,months:0,ready:true,enemyPlan:enemy.plan,enemyArmyId:enemy.id};
+   warNote('Войско '+rivalInfo[enemy.rival].name+' достигло «'+byId[next].name+'». Реши судьбу провинции в полевом сражении!');
+  }else warNote('Вражеский отряд '+rivalInfo[enemy.rival].name+' продвинулся к «'+byId[next].name+'».');
+ });
 }
 function borderTargets(){
  return data.owned.map(id=>byId[id]).filter(q=>q&&q.links.some(link=>byId[link]?.rival&&!isOwned(link)));
@@ -187,6 +263,7 @@ function resolveInvasion(tactic='balanced'){
   if(p.id!=='eldoria'&&data.owned.length>1){data.owned=data.owned.filter(id=>id!==p.id);delete data.garrisons[p.id];data.claimed=Math.max(0,data.claimed-1);warNote('Провинция «'+p.name+'» захвачена державой '+r.name+'. Армия отступила; потери: '+losses+'.')}
   else warNote('Войско '+r.name+' прорвало оборону «'+p.name+'». Потери: '+losses+' воинов; столица удержалась.');
  }
+ if(event.enemyArmyId)data.enemyArmies=data.enemyArmies.filter(a=>a.id!==event.enemyArmyId);
  data.invasion=null;
 }
 function defendBorder(tactic='balanced'){if(!data.invasion)return;resolveInvasion(tactic);save();render()}
@@ -204,7 +281,8 @@ function render(){
  const map=provinces.map(q=>{
   const owned=isOwned(q.id),known=isKnown(q.id),selected=q.id===p.id;
   const stationed=data.fieldArmies.filter(a=>a.location===q.id);
-  return '<button type="button" class="province '+(owned?'owned':known?'known':'fog')+(selected?' selected':'')+(stationed.length?' has-field-army':'')+'" style="--gx:'+q.x+';--gy:'+q.y+'" data-province="'+q.id+'" aria-label="'+(known?q.name:'Неизведанная земля')+'"><span class="province-icon">'+(known?q.icon:'?')+'</span><span class="province-name">'+(owned?q.name:known?q.name:'Туман войны')+'</span>'+(stationed.length?'<span class="field-army-pin">⚔ '+stationed.length+'</span>':'')+(owned?'<i>ВЛАДЕНИЕ</i>':known?'<i>ОТКРЫТО</i>':'<i>НЕИЗВЕДАНО</i>')+'</button>';
+  const hostile=data.enemyArmies.filter(a=>a.location===q.id);
+  return '<button type="button" class="province '+(owned?'owned':known?'known':'fog')+(selected?' selected':'')+(stationed.length?' has-field-army':'')+'" style="--gx:'+q.x+';--gy:'+q.y+'" data-province="'+q.id+'" aria-label="'+(known?q.name:'Неизведанная земля')+'"><span class="province-icon">'+(known?q.icon:'?')+'</span><span class="province-name">'+(owned?q.name:known?q.name:'Туман войны')+'</span>'+(stationed.length?'<span class="field-army-pin">⚔ '+stationed.length+'</span>':'')+(hostile.length?'<span class="enemy-army-pin">☠ '+hostile.length+'</span>':'')+(owned?'<i>ВЛАДЕНИЕ</i>':known?'<i>ОТКРЫТО</i>':'<i>НЕИЗВЕДАНО</i>')+'</button>';
  }).join('');
  const links=neighbors(p).map(q=>'<span class="neighbor-tag">'+(isKnown(q.id)?q.icon+' '+q.name:'? Неизведанная земля')+'</span>').join('');
  let action='';
@@ -222,6 +300,9 @@ function render(){
  const garrisonCards=data.owned.filter(id=>id!=='eldoria').map(id=>'<div class="garrison-row"><span>'+byId[id].icon+' '+byId[id].name+' <b>'+ (data.garrisons[id]||0)+'</b></span><button type="button" data-garrison="'+id+'" '+(data.army<=0?'disabled':'')+'>Разместить</button><button type="button" data-recall="'+id+'" '+(!data.garrisons[id]?'disabled':'')+'>Отозвать</button></div>').join('');
  const military='<section class="army-command"><div class="army-heading"><div><small>КОРОЛЕВСКОЕ ВОЙСКО</small><h3>Армия Эльдории</h3><p>Собирай дружину, укрепляй боевой дух и веди осады чужих крепостей.</p></div><div class="army-crest">⚔️</div></div><div class="army-metrics"><span>Воинов<b>'+data.army+' / 30</b></span><span>Боевой дух<b>'+data.morale+'%</b></span><span>Сила войска<b>'+Math.floor(data.army*(.65+data.morale/200))+'</b></span></div><div class="troop-roster">'+troopCards+'</div><div class="general-roster"><div class="subhead"><b>Полководцы</b><button type="button" data-general="hire" '+(data.generals.length>=3||data.treasury<35||data.influence<10?'disabled':'')+'>Нанять генерала · 35 🪙 · 10 влияния</button></div>'+(generalCards||'<small>У короны пока нет назначенных полководцев.</small>')+'</div><div class="garrison-roster"><div class="subhead"><b>Гарнизоны провинций</b><small>Размещённые воины не участвуют в походах</small></div>'+(garrisonCards||'<small>Сначала присоедините новые земли.</small>')+'</div>'+(data.siege?'<div class="siege-active"><b>⚔️ Идёт осада: '+byId[data.siege.target].name+'</b><span>До штурма: '+data.siege.months+' мес. · В походе '+data.siege.startedWith+' воинов</span></div>':'<div class="siege-targets"><small>ЦЕЛИ ДЛЯ ВОЕННОГО ПОХОДА</small>'+provinces.filter(q=>q.rival&&!isOwned(q.id)).map(q=>'<div class="siege-target"><span>'+q.icon+' '+q.name+' <small>Держава: '+q.rival+'</small></span><button type="button" data-siege="'+q.id+'" '+(!isKnown(q.id)||data.army<5||data.treasury<20||data.influence<8?'disabled':'')+'>Начать осаду</button></div>').join('')+'</div>')+(data.warLog.length?'<div class="war-chronicle">'+data.warLog.map(x=>'<p>'+x+'</p>').join('')+'</div>':'')+'</section>';
  root.insertAdjacentHTML('beforeend',military);
+ const enemyArmyPanel='<section class="enemy-armies"><div class="enemy-armies-head"><div><small>ВОЙСКА СОСЕДНИХ ДЕРЖАВ</small><b>Разведка передвижений</b></div><span>'+data.enemyArmies.length+' / 2</span></div>'+(data.enemyArmies.length?data.enemyArmies.map(a=>'<div class="enemy-army-row"><span>☠ '+rivalInfo[a.rival].name+' · '+byId[a.location].name+'</span><b>Сила '+a.power+'</b><small>'+(a.target?'Цель: '+byId[a.target].name:'Ищет путь к границе')+' · '+({charge:'штурм',volley:'обстрел',brace:'строй'}[a.plan]||'манёвр')+'</small></div>').join(''):'<small>Пока вражеские отряды не замечены. Они появляются у открытых границ раз в несколько месяцев.</small>')+'</section>';
+ root.insertAdjacentHTML('beforeend',enemyArmyPanel);
+
  const invasionPanel=data.invasion?'<section class="invasion-panel"><div class="invasion-title"><span>🚨 '+(data.invasion.ready?'ПОЛЕВОЕ СРАЖЕНИЕ':'ПОГРАНИЧНАЯ ТРЕВОГА')+'</span><b>'+rivalInfo[data.invasion.rival].name+'</b></div><h3>'+(data.invasion.ready?'Битва за ':'Вторжение у провинции «')+byId[data.invasion.target].name+(data.invasion.ready?'':'»')+'</h3><p>Вражеская армия: '+data.invasion.power+' силы. '+(data.invasion.ready?'Противник готовит '+({charge:'лобовую атаку',volley:'обстрел',brace:'укреплённую позицию'}[data.invasion.enemyPlan]||'неизвестный манёвр')+'. Выбери построение войск.':'До столкновения остался месяц. '+byId[data.invasion.target].kind+' дают защитникам бонус местности '+Math.round(terrainBonus(byId[data.invasion.target])*100)+'%.')+'</p><div class="invasion-actions">'+(data.invasion.ready?'<button type="button" data-tactic="shieldwall">🛡️ Щитовая стена</button><button type="button" data-tactic="volley">🏹 Залп лучников</button><button type="button" data-tactic="flank">🐎 Кавалерийский фланг</button><button type="button" data-tactic="balanced">⚔️ Смешанный строй</button>':'<span class="battle-countdown">Подготовь гарнизон и армию — до битвы 1 месяц</span>')+'<button type="button" data-invasion="truce" '+(data.treasury<20+Math.ceil(data.invasion.power*.8)||data.influence<6?'disabled':'')+'>Просить перемирие · '+(20+Math.ceil(data.invasion.power*.8))+' 🪙</button></div></section>':'<section class="frontier-panel"><div><small>СОСТОЯНИЕ ГРАНИЦ</small><b>'+(borderTargets().length?'Приграничье под наблюдением':'Границы спокойны')+'</b></div><div class="frontier-rivals">'+Object.entries(rivalInfo).map(([key,r])=>'<span>'+r.icon+' '+r.name+' <b>'+((data.truces[key]||0)>0?'Перемирие · '+data.truces[key]+' мес.':'Сила '+(data.enemyForces[key]||0))+'</b></span>').join('')+'</div><small>Вражеские державы наращивают войска каждый месяц. Возможны вторжения в соседние с их землями провинции.</small></section>';
  root.insertAdjacentHTML('beforeend',invasionPanel);
  root.querySelectorAll('[data-tactic]').forEach(btn=>btn.addEventListener('click',()=>defendBorder(btn.dataset.tactic)));
@@ -248,6 +329,8 @@ document.getElementById('nextMonth')?.addEventListener('click',()=>{
  if(data.invasion&&!data.invasion.ready){data.invasion.months--;if(data.invasion.months<=0){data.invasion.ready=true;warNote('Войска противника подошли к рубежу. Выбери тактику и начни сражение.')}}else if(!data.invasion)prepareInvasion();
  resolveSiegeMonth();
  advanceFieldArmies();
+ spawnEnemyArmy();
+ advanceEnemyArmies();
  const income=data.owned.reduce((sum,id)=>sum+(byId[id]?.gold||0),0);
  const influence=data.owned.reduce((sum,id)=>sum+(byId[id]?.influence||0),0);
  data.treasury+=income;data.influence+=influence;save();render();

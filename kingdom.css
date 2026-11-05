@@ -62,3 +62,16 @@
 .field-army-orders button{padding:6px 8px;border:1px solid #536b58;border-radius:4px;background:#26392e;color:#d6e0c8;font-size:8px}
 .field-army-orders button[data-field-disband]{border-color:#80534a;background:#3a2926;color:#e5b9a9}
 @media(max-width:520px){.field-army-orders{display:grid;grid-template-columns:1fr 1fr}.field-army-orders button{min-width:0}}
+
+/* Hostile detachments have a distinct warning marker and intelligence panel. */
+.province .enemy-army-pin{position:absolute;left:3px;top:2px;padding:2px 4px;border-radius:9px;background:#9b382d;color:#fff0dc;font-size:8px;font-weight:800;z-index:2}
+.province.has-field-army .field-army-pin{right:3px;left:auto}
+.enemy-armies{display:grid;gap:8px;margin-top:12px;padding:12px;background:#2a211e;border:1px solid #895044;border-left:3px solid #b85a45;border-radius:7px}
+.enemy-armies-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.enemy-armies-head div{display:grid;gap:4px}
+.enemy-armies-head small{color:#d69a75;font-size:8px;letter-spacing:.14em}
+.enemy-armies-head b{color:#f0dfc7;font:600 18px 'Cormorant Garamond',serif}
+.enemy-armies-head>span{padding:4px 8px;border-radius:12px;background:#57342d;color:#f3c6a7;font-size:9px}
+.enemy-army-row{display:grid;grid-template-columns:1fr auto;gap:4px 8px;padding:8px 0;border-top:1px solid #ffffff16;color:#ead9c8;font-size:9px}
+.enemy-army-row>b{color:#e6a982}
+.enemy-army-row>small,.enemy-armies>small{grid-column:1/-1;color:#bba99b;font-size:8px;line-height:1.5}
