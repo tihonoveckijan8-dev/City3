@@ -47,3 +47,18 @@
 .invasion-actions button[data-tactic]:nth-child(2){background:#3a4146;border-color:#8294a0}
 .invasion-actions button[data-tactic]:nth-child(3){background:#51432d;border-color:#b39358}
 .battle-countdown{align-self:center;color:#e0c99d;font-size:9px}
+
+/* Field armies are visible on the realm map and can receive movement orders from their province. */
+.province.has-field-army{box-shadow:inset 0 0 0 2px #d8bd72,0 0 12px #d8bd7240}
+.field-army-pin{position:absolute;top:2px;right:3px;padding:2px 4px;border-radius:9px;background:#8b3028;color:#fff1d8;font-size:8px;font-weight:800}
+.province{position:relative}
+.field-command{display:grid;gap:8px;margin-top:12px;padding:10px;background:#1a2922;border:1px solid #536746;border-radius:6px}
+.field-command>b{color:#e5d4a7;font-size:10px}
+.field-command>button{padding:9px;border:1px solid #9b8756;border-radius:5px;background:#4b452f;color:#f0dfb7;font-size:9px;font-weight:700}
+.field-command>button:disabled{opacity:.35}
+.field-command>small{color:var(--muted);font-size:8px}
+.field-army-row{display:grid;gap:7px;padding:8px 0;border-top:1px solid #ffffff16;color:#d6d0bc;font-size:9px}
+.field-army-orders{display:flex;gap:5px;flex-wrap:wrap}
+.field-army-orders button{padding:6px 8px;border:1px solid #536b58;border-radius:4px;background:#26392e;color:#d6e0c8;font-size:8px}
+.field-army-orders button[data-field-disband]{border-color:#80534a;background:#3a2926;color:#e5b9a9}
+@media(max-width:520px){.field-army-orders{display:grid;grid-template-columns:1fr 1fr}.field-army-orders button{min-width:0}}

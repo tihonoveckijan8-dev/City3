@@ -45,6 +45,9 @@ data.enemyForces=data.enemyForces&&typeof data.enemyForces==='object'?data.enemy
 // WHY: rival truces and border incidents are versioned with the kingdom save, independently of city progress.
 data.truces=data.truces&&typeof data.truces==='object'?data.truces:{ashford:0,silver:0};
 data.invasion=data.invasion&&typeof data.invasion.target==='string'?data.invasion:null;
+// WHY: field detachments are saved separately from the reserve so marching never corrupts old troop counts.
+data.fieldArmies=Array.isArray(data.fieldArmies)?data.fieldArmies:[];
+data.nextFieldArmyId=Number.isFinite(data.nextFieldArmyId)?data.nextFieldArmyId:1;
 data.truces.ashford=Number.isFinite(data.truces.ashford)?Math.max(0,data.truces.ashford):0;
 data.truces.silver=Number.isFinite(data.truces.silver)?Math.max(0,data.truces.silver):0;
 data.army=Object.values(data.troops).reduce((a,b)=>a+b,0);
@@ -69,6 +72,61 @@ function resolveSiegeMonth(){if(!data.siege)return;data.siege.months--;data.mora
 
 // WHY: border wars only begin after the player owns a frontier province; early city-building stays peaceful.
 const rivalInfo={ashford:{name:'Эшфорд',key:'ashford',icon:'🦅'},silver:{name:'Серебряный Берег',key:'silver',icon:'⚓'}};
+
+function fieldPower(army){return Object.entries(army.troops||{}).reduce((sum,[type,count])=>sum+count*(unitTypes[type]?.power||1),0)}
+function deployFieldArmy(){
+ const p=byId[data.selected];if(!p||!isOwned(p.id)||data.army<3)return;
+ const troops={infantry:0,spearmen:0,archers:0,cavalry:0};let left=3;
+ for(const type of ['spearmen','infantry','archers','cavalry']){const take=Math.min(data.troops[type],left);troops[type]=take;data.troops[type]-=take;left-=take}
+ if(left)return;
+ data.army-=3;
+ data.fieldArmies.push({id:data.nextFieldArmyId++,location:p.id,target:null,troops,morale:data.morale});
+ warNote('Отряд из трёх воинов сформирован в провинции «'+p.name+'».');
+ save();render();
+}
+function orderFieldArmy(id,target){
+ const army=data.fieldArmies.find(a=>a.id===id),p=byId[target];
+ if(!army||!p||!army.location||!byId[army.location]?.links.includes(target)||(!isKnown(target)&&!p.rival))return;
+ army.target=target;
+ warNote('Отряду №'+army.id+' приказано выступить: '+byId[army.location].name+' → '+p.name+'.');
+ save();render();
+}
+function resolveFieldArrival(army,target){
+ const p=byId[target];if(!p)return;
+ if(p.rival&&!isOwned(target)){
+  const key=p.rival==='Эшфорд'?'ashford':'silver';
+  const attack=fieldPower(army)*(0.7+(army.morale||70)/250)+data.generals.reduce((n,g)=>n+g.command*.35,0);
+  const defense=6+(data.enemyForces[key]||10)*.7+(p.id==='coast'?3:0);
+  if(attack>=defense){
+   data.owned.push(target);data.discovered.push(target);data.claimed++;data.treasury+=12;data.influence+=3;
+   data.enemyForces[key]=Math.max(3,(data.enemyForces[key]||10)-3);
+   warNote('Отряд №'+army.id+' победил защитников и занял «'+p.name+'». Провинция перешла под власть Эльдории.');
+  }else{
+   data.enemyForces[key]=Math.min(40,(data.enemyForces[key]||10)+2);
+   warNote('Отряд №'+army.id+' потерпел поражение у «'+p.name+'» и отступил. Остатки вернулись в резерв.');
+   Object.entries(army.troops).forEach(([type,count])=>{const survivors=Math.max(0,Math.floor(count*.45));data.troops[type]+=survivors;data.army+=survivors});
+   data.fieldArmies=data.fieldArmies.filter(a=>a.id!==army.id);return;
+  }
+ }
+ army.location=target;army.target=null;
+}
+function advanceFieldArmies(){
+ data.fieldArmies.slice().forEach(army=>{
+  if(!army.target)return;
+  const from=byId[army.location],to=byId[army.target];
+  if(!from||!to||!from.links.includes(to.id)){army.target=null;return}
+  army.location=to.id;
+  warNote('Отряд №'+army.id+' прибыл в провинцию «'+to.name+'».');
+  resolveFieldArrival(army,to.id);
+ });
+}
+function disbandFieldArmy(id){
+ const army=data.fieldArmies.find(a=>a.id===id);if(!army)return;
+ Object.entries(army.troops).forEach(([type,count])=>{data.troops[type]+=count;data.army+=count});
+ data.fieldArmies=data.fieldArmies.filter(a=>a.id!==id);
+ warNote('Отряд №'+id+' распущен; воины вернулись в резерв.');
+ save();render();
+}
 function borderTargets(){
  return data.owned.map(id=>byId[id]).filter(q=>q&&q.links.some(link=>byId[link]?.rival&&!isOwned(link)));
 }
@@ -145,11 +203,17 @@ function render(){
  const p=byId[data.selected]||byId.eldoria;
  const map=provinces.map(q=>{
   const owned=isOwned(q.id),known=isKnown(q.id),selected=q.id===p.id;
-  return '<button type="button" class="province '+(owned?'owned':known?'known':'fog')+(selected?' selected':'')+'" style="--gx:'+q.x+';--gy:'+q.y+'" data-province="'+q.id+'" aria-label="'+(known?q.name:'Неизведанная земля')+'"><span class="province-icon">'+(known?q.icon:'?')+'</span><span class="province-name">'+(owned?q.name:known?q.name:'Туман войны')+'</span>'+(owned?'<i>ВЛАДЕНИЕ</i>':known?'<i>ОТКРЫТО</i>':'<i>НЕИЗВЕДАНО</i>')+'</button>';
+  const stationed=data.fieldArmies.filter(a=>a.location===q.id);
+  return '<button type="button" class="province '+(owned?'owned':known?'known':'fog')+(selected?' selected':'')+(stationed.length?' has-field-army':'')+'" style="--gx:'+q.x+';--gy:'+q.y+'" data-province="'+q.id+'" aria-label="'+(known?q.name:'Неизведанная земля')+'"><span class="province-icon">'+(known?q.icon:'?')+'</span><span class="province-name">'+(owned?q.name:known?q.name:'Туман войны')+'</span>'+(stationed.length?'<span class="field-army-pin">⚔ '+stationed.length+'</span>':'')+(owned?'<i>ВЛАДЕНИЕ</i>':known?'<i>ОТКРЫТО</i>':'<i>НЕИЗВЕДАНО</i>')+'</button>';
  }).join('');
  const links=neighbors(p).map(q=>'<span class="neighbor-tag">'+(isKnown(q.id)?q.icon+' '+q.name:'? Неизведанная земля')+'</span>').join('');
  let action='';
  if(isOwned(p.id))action='<div class="province-status">✓ Провинция входит в королевство. Приносит <b>+'+p.gold+' золота</b> и <b>+'+p.influence+' влияния</b> каждый месяц.</div>';
+ if(isOwned(p.id)){
+ const stationed=data.fieldArmies.filter(a=>a.location===p.id);
+ const armyRows=stationed.map(a=>'<div class="field-army-row"><span>⚔️ Отряд №'+a.id+' · '+Object.values(a.troops).reduce((n,v)=>n+v,0)+' воинов · сила '+Math.round(fieldPower(a))+(a.target?' · марш к '+byId[a.target].name:' · ожидает приказа')+'</span><div class="field-army-orders">'+neighbors(p).filter(q=>isKnown(q.id)||q.rival).map(q=>'<button type="button" data-field-move="'+a.id+'" data-field-target="'+q.id+'">→ '+q.name+'</button>').join('')+'<button type="button" data-field-disband="'+a.id+'">Распустить</button></div></div>').join('');
+ action+='<div class="field-command"><b>Полевые отряды</b><button type="button" data-field-deploy '+(data.army<3?'disabled':'')+'>Выделить отряд · 3 воина</button>'+(armyRows||'<small>В этой провинции нет полевых отрядов.</small>')+'</div>';
+ }
  else if(!isKnown(p.id))action='<button class="kingdom-action" data-action="scout" '+(canScout(p)?'':'disabled')+'>Разведать земли · 8 🪙 · 5 влияния</button><small class="kingdom-hint">Для разведки нужна соседняя ваша провинция, 8 золотых и 5 влияния.</small>';
  else action='<button class="kingdom-action" data-action="claim" '+(canClaim(p)?'':'disabled')+'>Присоединить · '+p.cost+' 🪙 · 3 влияния</button><small class="kingdom-hint">После присоединения земля начнёт приносить доход короне.</small>';
  root.innerHTML='<div class="kingdom-summary"><div><small>ЗЕМЛИ КОРОНЫ</small><b>'+data.owned.length+' / '+provinces.length+'</b></div><div><small>КОРОЛЕВСКАЯ КАЗНА</small><b>'+data.treasury+' 🪙</b></div><div><small>ВЛИЯНИЕ</small><b>'+data.influence+' ✦</b></div><div><small>РАСШИРЕНИЕ</small><b>'+data.claimed+' провинций</b></div></div><div class="kingdom-layout"><div class="kingdom-map-wrap"><div class="kingdom-map" aria-label="Карта провинций">'+map+'</div><div class="kingdom-legend"><span><i class="legend-owned"></i> Ваши земли</span><span><i class="legend-known"></i> Разведано</span><span><i class="legend-fog"></i> Туман войны</span></div></div><aside class="province-detail"><small class="detail-kicker">ПРОВИНЦИЯ · '+(isOwned(p.id)?'ПОД ВАШЕЙ ВЛАСТЬЮ':isKnown(p.id)?'РАЗВЕДАНА':'НЕИЗВЕДАНА')+'</small><div class="detail-emblem">'+(isKnown(p.id)?p.icon:'❔')+'</div><h3>'+(isKnown(p.id)?p.name:'Неизведанная земля')+'</h3><p>'+(isKnown(p.id)?p.desc:'Отправьте разведчиков, чтобы узнать, что скрывает эта часть королевства.')+'</p>'+(isKnown(p.id)?'<div class="province-facts"><span>Местность<b>'+p.kind+'</b></span><span>Особенность<b>'+p.resource+'</b></span>'+(p.rival?'<span>Претензии соседей<b>'+p.rival+'</b></span>':'')+'</div>':'')+'<div class="province-neighbors"><small>СОСЕДНИЕ ЗЕМЛИ</small><div>'+links+'</div></div>'+action+'</aside></div><div class="kingdom-footer"><span>Каждый прожитый месяц приносит доход со всех присоединённых провинций.</span><button type="button" data-action="reset" title="Сбросить только карту королевства">Сбросить карту</button></div>';
@@ -167,7 +231,10 @@ function render(){
  root.querySelectorAll('[data-garrison]').forEach(btn=>btn.addEventListener('click',()=>garrison(btn.dataset.garrison)));
  root.querySelectorAll('[data-recall]').forEach(btn=>btn.addEventListener('click',()=>recallGarrison(btn.dataset.recall)));
  root.querySelectorAll('[data-siege]').forEach(btn=>btn.addEventListener('click',()=>startSiege(btn.dataset.siege)));
-root.querySelectorAll('[data-province]').forEach(btn=>btn.addEventListener('click',()=>select(btn.dataset.province)));
+root.querySelector('[data-field-deploy]')?.addEventListener('click',deployFieldArmy);
+ root.querySelectorAll('[data-field-move]').forEach(btn=>btn.addEventListener('click',()=>orderFieldArmy(Number(btn.dataset.fieldMove),btn.dataset.fieldTarget)));
+ root.querySelectorAll('[data-field-disband]').forEach(btn=>btn.addEventListener('click',()=>disbandFieldArmy(Number(btn.dataset.fieldDisband))));
+ root.querySelectorAll('[data-province]').forEach(btn=>btn.addEventListener('click',()=>select(btn.dataset.province)));
  root.querySelector('[data-action="scout"]')?.addEventListener('click',()=>scout(p.id));
  root.querySelector('[data-action="claim"]')?.addEventListener('click',()=>claim(p.id));
  root.querySelector('[data-action="reset"]')?.addEventListener('click',()=>{if(confirm('Сбросить только исследование и владения королевства? Город и его сохранение не изменятся.')){data=initial();save();render()}});
@@ -180,6 +247,7 @@ document.getElementById('nextMonth')?.addEventListener('click',()=>{
  Object.keys(data.enemyForces).forEach(key=>data.enemyForces[key]=Math.min(40,(data.enemyForces[key]||0)+1));
  if(data.invasion&&!data.invasion.ready){data.invasion.months--;if(data.invasion.months<=0){data.invasion.ready=true;warNote('Войска противника подошли к рубежу. Выбери тактику и начни сражение.')}}else if(!data.invasion)prepareInvasion();
  resolveSiegeMonth();
+ advanceFieldArmies();
  const income=data.owned.reduce((sum,id)=>sum+(byId[id]?.gold||0),0);
  const influence=data.owned.reduce((sum,id)=>sum+(byId[id]?.influence||0),0);
  data.treasury+=income;data.influence+=influence;save();render();
