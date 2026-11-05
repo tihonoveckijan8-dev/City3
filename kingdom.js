@@ -42,6 +42,11 @@ Object.keys(unitTypes).forEach(k=>data.troops[k]=Number.isFinite(data.troops[k])
 data.generals=Array.isArray(data.generals)?data.generals:[];
 data.garrisons=data.garrisons&&typeof data.garrisons==='object'?data.garrisons:{};
 data.enemyForces=data.enemyForces&&typeof data.enemyForces==='object'?data.enemyForces:{ashford:14,silver:10};
+// WHY: rival truces and border incidents are versioned with the kingdom save, independently of city progress.
+data.truces=data.truces&&typeof data.truces==='object'?data.truces:{ashford:0,silver:0};
+data.invasion=data.invasion&&typeof data.invasion.target==='string'?data.invasion:null;
+data.truces.ashford=Number.isFinite(data.truces.ashford)?Math.max(0,data.truces.ashford):0;
+data.truces.silver=Number.isFinite(data.truces.silver)?Math.max(0,data.truces.silver):0;
 data.army=Object.values(data.troops).reduce((a,b)=>a+b,0);
 const root=document.getElementById('kingdomApp');
 if(!root)return;
@@ -61,6 +66,74 @@ function garrison(id){if(!isOwned(id)||data.army<=0)return;const key=id;data.gar
 function recallGarrison(id){if(!data.garrisons[id])return;data.garrisons[id]--;data.army++;data.troops.infantry++;warNote('Воин возвращён из гарнизона «'+byId[id].name+'».');save();render()}
 function startSiege(id){const p=byId[id];if(!p||!p.rival||isOwned(id)||!isKnown(id)||data.siege||data.army<5||data.treasury<20||data.influence<8)return;data.treasury-=20;data.influence-=8;data.siege={target:id,months:3,startedWith:data.army};data.morale=Math.max(0,data.morale-3);warNote('Армия Эльдории выступила к провинции «'+p.name+'». Началась осада державы '+p.rival+'.');save();render()}
 function resolveSiegeMonth(){if(!data.siege)return;data.siege.months--;data.morale=Math.max(0,data.morale-2);const p=byId[data.siege.target];if(data.siege.months>0){warNote('Осада «'+p.name+'»: до решающего штурма осталось '+data.siege.months+' мес.');return}const typedPower=Object.entries(data.troops).reduce((sum,[type,count])=>sum+count*(unitTypes[type]?.power||1),0);const generalBonus=data.generals.reduce((sum,g)=>sum+g.command,0);const force=typedPower*(.65+data.morale/200)+generalBonus,defense=(p.id==='coast'?11:8)+(data.enemyForces[p.rival==='Эшфорд'?'ashford':'silver']||0)*.25;if(force>=defense){const losses=Math.min(data.army,Math.max(1,Math.floor(data.army*.2)));data.army-=losses;let left=losses;for(const type of ['infantry','spearmen','archers','cavalry']){const take=Math.min(data.troops[type],left);data.troops[type]-=take;left-=take;}data.owned.push(p.id);data.claimed++;data.treasury+=18;data.influence+=5;data.morale=Math.min(100,data.morale+14);warNote('Победа! «'+p.name+'» присоединена. Потери: '+losses+' воинов. Казна получила 18 золотых.')}else{const losses=Math.min(data.army,Math.max(2,Math.ceil(data.army*.45)));data.army-=losses;let left=losses;for(const type of ['infantry','spearmen','archers','cavalry']){const take=Math.min(data.troops[type],left);data.troops[type]-=take;left-=take;}data.morale=Math.max(15,data.morale-18);warNote('Штурм «'+p.name+'» отбит. Потери: '+losses+' воинов. Армия отступила.')}data.siege=null}
+
+// WHY: border wars only begin after the player owns a frontier province; early city-building stays peaceful.
+const rivalInfo={ashford:{name:'Эшфорд',key:'ashford',icon:'🦅'},silver:{name:'Серебряный Берег',key:'silver',icon:'⚓'}};
+function borderTargets(){
+ return data.owned.map(id=>byId[id]).filter(q=>q&&q.links.some(link=>byId[link]?.rival&&!isOwned(link)));
+}
+function terrainBonus(p){
+ const kind=(p?.kind||'').toLowerCase();
+ if(/гор|холм|лес|чащ/.test(kind))return .24;
+ if(/реч|брод/.test(kind))return .3;
+ if(/луг|пол/.test(kind))return .06;
+ return .12;
+}
+function prepareInvasion(){
+ if(data.invasion)return;
+ const targets=borderTargets();
+ if(!targets.length||data.months%3!==0)return;
+ const eligible=targets.filter(p=>{
+  const rival=p.links.map(id=>byId[id]).find(q=>q?.rival&&!isOwned(q.id));
+  if(!rival)return false;
+  const key=rival.rival==='Эшфорд'?'ashford':'silver';
+  return (data.truces[key]||0)<=0;
+ });
+ if(!eligible.length||Math.random()>.55)return;
+ const target=eligible[Math.floor(Math.random()*eligible.length)];
+ const enemy=target.links.map(id=>byId[id]).find(q=>q?.rival&&!isOwned(q.id));
+ const key=enemy.rival==='Эшфорд'?'ashford':'silver';
+ const power=Math.max(7,Math.round(5+(data.enemyForces[key]||10)*.55));
+ data.invasion={target:target.id,rival:key,power,months:1};
+ warNote('Разведчики заметили войско державы '+rivalInfo[key].name+' у границ провинции «'+target.name+'». Через месяц начнётся вторжение.');
+}
+function resolveInvasion(){
+ const event=data.invasion;if(!event)return;
+ const p=byId[event.target],r=rivalInfo[event.rival];
+ if(!p||!isOwned(p.id)){data.invasion=null;return}
+ const typed=Object.entries(data.troops).reduce((sum,[type,count])=>sum+count*(unitTypes[type]?.power||1),0);
+ const generals=data.generals.reduce((sum,g)=>sum+g.command,0);
+ const garrison=data.garrisons[p.id]||0;
+ const defense=typed*(.65+data.morale/200)+generals+garrison*1.15+Math.round((typed+garrison)*terrainBonus(p));
+ if(defense>=event.power){
+  const losses=Math.min(data.army,Math.max(1,Math.floor(event.power*.12)));
+  data.army-=losses;let left=losses;
+  for(const type of ['infantry','spearmen','archers','cavalry']){const take=Math.min(data.troops[type],left);data.troops[type]-=take;left-=take;}
+  data.enemyForces[event.rival]=Math.max(3,(data.enemyForces[event.rival]||10)-4);
+  data.treasury+=12;data.morale=Math.min(100,data.morale+8);
+  warNote('Оборона «'+p.name+'» успешна! Войско '+r.name+' отброшено. Потери: '+losses+'. Награда: 12 золотых.');
+ }else{
+  const losses=Math.min(data.army,Math.max(2,Math.ceil(event.power*.22)));
+  data.army-=losses;let left=losses;
+  for(const type of ['infantry','spearmen','archers','cavalry']){const take=Math.min(data.troops[type],left);data.troops[type]-=take;left-=take;}
+  const gLoss=Math.min(data.garrisons[p.id]||0,Math.ceil(event.power*.08));
+  data.garrisons[p.id]=Math.max(0,(data.garrisons[p.id]||0)-gLoss);
+  data.morale=Math.max(10,data.morale-15);
+  if(p.id!=='eldoria'&&data.owned.length>1){data.owned=data.owned.filter(id=>id!==p.id);delete data.garrisons[p.id];data.claimed=Math.max(0,data.claimed-1);warNote('Провинция «'+p.name+'» захвачена державой '+r.name+'. Армия отступила; потери: '+losses+'.')}
+  else warNote('Войско '+r.name+' прорвало оборону «'+p.name+'». Потери: '+losses+' воинов; столица удержалась.');
+ }
+ data.invasion=null;
+}
+function defendBorder(){if(!data.invasion)return;resolveInvasion();save();render()}
+function negotiateTruce(){
+ const e=data.invasion;if(!e)return;
+ const cost=20+Math.ceil(e.power*.8),influence=6;
+ if(data.treasury<cost||data.influence<influence)return;
+ data.treasury-=cost;data.influence-=influence;data.truces[e.rival]=4;
+ data.enemyForces[e.rival]=Math.max(4,(data.enemyForces[e.rival]||10)-2);
+ warNote('Заключено перемирие с державой '+rivalInfo[e.rival].name+' на 4 месяца. Цена мира: '+cost+' золотых и '+influence+' влияния.');
+ data.invasion=null;save();render();
+}
 function render(){
  const p=byId[data.selected]||byId.eldoria;
  const map=provinces.map(q=>{
@@ -78,6 +151,10 @@ function render(){
  const garrisonCards=data.owned.filter(id=>id!=='eldoria').map(id=>'<div class="garrison-row"><span>'+byId[id].icon+' '+byId[id].name+' <b>'+ (data.garrisons[id]||0)+'</b></span><button type="button" data-garrison="'+id+'" '+(data.army<=0?'disabled':'')+'>Разместить</button><button type="button" data-recall="'+id+'" '+(!data.garrisons[id]?'disabled':'')+'>Отозвать</button></div>').join('');
  const military='<section class="army-command"><div class="army-heading"><div><small>КОРОЛЕВСКОЕ ВОЙСКО</small><h3>Армия Эльдории</h3><p>Собирай дружину, укрепляй боевой дух и веди осады чужих крепостей.</p></div><div class="army-crest">⚔️</div></div><div class="army-metrics"><span>Воинов<b>'+data.army+' / 30</b></span><span>Боевой дух<b>'+data.morale+'%</b></span><span>Сила войска<b>'+Math.floor(data.army*(.65+data.morale/200))+'</b></span></div><div class="troop-roster">'+troopCards+'</div><div class="general-roster"><div class="subhead"><b>Полководцы</b><button type="button" data-general="hire" '+(data.generals.length>=3||data.treasury<35||data.influence<10?'disabled':'')+'>Нанять генерала · 35 🪙 · 10 влияния</button></div>'+(generalCards||'<small>У короны пока нет назначенных полководцев.</small>')+'</div><div class="garrison-roster"><div class="subhead"><b>Гарнизоны провинций</b><small>Размещённые воины не участвуют в походах</small></div>'+(garrisonCards||'<small>Сначала присоедините новые земли.</small>')+'</div>'+(data.siege?'<div class="siege-active"><b>⚔️ Идёт осада: '+byId[data.siege.target].name+'</b><span>До штурма: '+data.siege.months+' мес. · В походе '+data.siege.startedWith+' воинов</span></div>':'<div class="siege-targets"><small>ЦЕЛИ ДЛЯ ВОЕННОГО ПОХОДА</small>'+provinces.filter(q=>q.rival&&!isOwned(q.id)).map(q=>'<div class="siege-target"><span>'+q.icon+' '+q.name+' <small>Держава: '+q.rival+'</small></span><button type="button" data-siege="'+q.id+'" '+(!isKnown(q.id)||data.army<5||data.treasury<20||data.influence<8?'disabled':'')+'>Начать осаду</button></div>').join('')+'</div>')+(data.warLog.length?'<div class="war-chronicle">'+data.warLog.map(x=>'<p>'+x+'</p>').join('')+'</div>':'')+'</section>';
  root.insertAdjacentHTML('beforeend',military);
+ const invasionPanel=data.invasion?'<section class="invasion-panel"><div class="invasion-title"><span>🚨 ПОГРАНИЧНАЯ ТРЕВОГА</span><b>'+rivalInfo[data.invasion.rival].name+'</b></div><h3>Вторжение у провинции «'+byId[data.invasion.target].name+'»</h3><p>Вражеская армия: '+data.invasion.power+' силы. До столкновения остался месяц. '+byId[data.invasion.target].kind+' дают защитникам бонус местности '+Math.round(terrainBonus(byId[data.invasion.target])*100)+'%.</p><div class="invasion-actions"><button type="button" data-invasion="defend">Выступить на защиту</button><button type="button" data-invasion="truce" '+(data.treasury<20+Math.ceil(data.invasion.power*.8)||data.influence<6?'disabled':'')+'>Просить перемирие · '+(20+Math.ceil(data.invasion.power*.8))+' 🪙</button></div></section>':'<section class="frontier-panel"><div><small>СОСТОЯНИЕ ГРАНИЦ</small><b>'+(borderTargets().length?'Приграничье под наблюдением':'Границы спокойны')+'</b></div><div class="frontier-rivals">'+Object.entries(rivalInfo).map(([key,r])=>'<span>'+r.icon+' '+r.name+' <b>'+((data.truces[key]||0)>0?'Перемирие · '+data.truces[key]+' мес.':'Сила '+(data.enemyForces[key]||0))+'</b></span>').join('')+'</div><small>Вражеские державы наращивают войска каждый месяц. Возможны вторжения в соседние с их землями провинции.</small></section>';
+ root.insertAdjacentHTML('beforeend',invasionPanel);
+ root.querySelector('[data-invasion="defend"]')?.addEventListener('click',defendBorder);
+ root.querySelector('[data-invasion="truce"]')?.addEventListener('click',negotiateTruce);
  root.querySelectorAll('[data-recruit]').forEach(btn=>btn.addEventListener('click',()=>recruit(btn.dataset.recruit)));
  root.querySelector('[data-general="hire"]')?.addEventListener('click',hireGeneral);
  root.querySelectorAll('[data-garrison]').forEach(btn=>btn.addEventListener('click',()=>garrison(btn.dataset.garrison)));
@@ -90,6 +167,10 @@ root.querySelectorAll('[data-province]').forEach(btn=>btn.addEventListener('clic
 }
 document.getElementById('nextMonth')?.addEventListener('click',()=>{
  data.months++;
+ // WHY: rival forces and truces advance with the kingdom month, while invasions are announced before battle.
+ Object.keys(data.truces).forEach(key=>data.truces[key]=Math.max(0,(data.truces[key]||0)-1));
+ Object.keys(data.enemyForces).forEach(key=>data.enemyForces[key]=Math.min(40,(data.enemyForces[key]||0)+1));
+ if(data.invasion){data.invasion.months--;if(data.invasion.months<=0)resolveInvasion()}else prepareInvasion();
  resolveSiegeMonth();
  const income=data.owned.reduce((sum,id)=>sum+(byId[id]?.gold||0),0);
  const influence=data.owned.reduce((sum,id)=>sum+(byId[id]?.influence||0),0);

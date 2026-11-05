@@ -21,3 +21,23 @@
 .garrison-row span{flex:1}
 .garrison-row span b{margin-left:6px;color:#e6d2a4}
 @media(max-width:650px){.troop-roster{grid-template-columns:1fr 1fr}.general-card{align-items:flex-start;flex-direction:column}.subhead{align-items:flex-start;flex-direction:column}}
+
+/* Living frontier: border warnings, terrain intelligence and truce status. */
+.invasion-panel{margin-top:13px;padding:13px;background:#30251e;border:1px solid #a56b3e;border-left:3px solid #d18b4b;border-radius:7px;color:#ead8b8}
+.invasion-title{display:flex;justify-content:space-between;gap:8px;color:#e8a96b;font-size:8px;letter-spacing:.13em}
+.invasion-title b{color:#e6d4a7;letter-spacing:0}
+.invasion-panel h3{margin:7px 0 4px;font:600 20px 'Cormorant Garamond',serif}
+.invasion-panel p{margin:0;color:#c9bba2;font-size:9px;line-height:1.6}
+.invasion-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+.invasion-actions button{padding:9px 12px;border:1px solid #b98952;border-radius:5px;background:#62432b;color:#f2dfbd;font-size:9px;font-weight:700;cursor:pointer}
+.invasion-actions button+button{background:#34382d;border-color:#82754c}
+.invasion-actions button:disabled{opacity:.35;cursor:not-allowed}
+.frontier-panel{display:grid;gap:9px;margin-top:13px;padding:12px;background:#1c2923;border:1px solid #405346;border-radius:7px}
+.frontier-panel>div:first-child{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.frontier-panel small{color:var(--muted);font-size:8px;line-height:1.5}
+.frontier-panel>div:first-child small{color:var(--gold);letter-spacing:.13em}
+.frontier-panel>div:first-child b{color:#d8d2bd;font-size:9px}
+.frontier-rivals{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.frontier-rivals span{display:grid;gap:4px;padding:8px;background:#25332b;border-radius:5px;color:#d8d2bd;font-size:9px}
+.frontier-rivals b{color:#c6b17d;font-size:8px;font-weight:500}
+@media(max-width:520px){.invasion-actions{display:grid}.invasion-actions button{width:100%}.frontier-rivals{grid-template-columns:1fr}}
