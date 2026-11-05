@@ -41,3 +41,9 @@
 .frontier-rivals span{display:grid;gap:4px;padding:8px;background:#25332b;border-radius:5px;color:#d8d2bd;font-size:9px}
 .frontier-rivals b{color:#c6b17d;font-size:8px;font-weight:500}
 @media(max-width:520px){.invasion-actions{display:grid}.invasion-actions button{width:100%}.frontier-rivals{grid-template-columns:1fr}}
+
+/* Tactical field battle orders */
+.invasion-actions button[data-tactic]{background:#3b4938;border-color:#8b9a70}
+.invasion-actions button[data-tactic]:nth-child(2){background:#3a4146;border-color:#8294a0}
+.invasion-actions button[data-tactic]:nth-child(3){background:#51432d;border-color:#b39358}
+.battle-countdown{align-self:center;color:#e0c99d;font-size:9px}
