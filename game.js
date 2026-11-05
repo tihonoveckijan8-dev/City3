@@ -14,7 +14,7 @@ state.tiles=state.tiles||copy(World.initial);
 // WHY: migrate only the untouched original starter layout; preserve any player-built structures.
 if(state.tiles[38]?.type==='road'&&state.tiles[39]?.type==='house'&&state.tiles[40]?.type==='house'&&state.tiles[41]?.type==='road'&&state.tiles[42]?.type==='road'&&state.tiles[43]?.type==='road'){[38,39,40,41,42,43].forEach(id=>delete state.tiles[id]);Object.assign(state.tiles,copy(World.initial))}
 state.resources=state.resources||{wood:34,stone:20,gold:24,food:34,grain:0,flour:0};
-state.log=state.log||[];state.caravan=state.caravan||{months:2,arrived:false};state.clock=Number.isFinite(state.clock)?state.clock:420;state.day=state.day||1;
+state.log=state.log||[];state.cityTier=state.cityTier||'hamlet';state.caravan=state.caravan||{months:2,arrived:false};state.clock=Number.isFinite(state.clock)?state.clock:420;state.day=state.day||1;
 state.people.forEach((p,i)=>{p.id=p.id||i+1;p.home=p.home??(i<4?31:49);p.workplace=p.workplace??null;p.pos=p.pos??p.home;p.route=Array.isArray(p.route)?p.route:[];p.routeIndex=p.routeIndex||0;p.desiredTarget=p.desiredTarget??null;p.status=p.status||'resting';p.walkTicks=p.walkTicks||0});
 function addLog(s){state.log.unshift(s);state.log=state.log.slice(0,8)}
 const tradeGoods={wood:{label:'Древесина',icon:'🪵',base:2},stone:{label:'Камень',icon:'🪨',base:3},food:{label:'Провизия',icon:'🥖',base:2},grain:{label:'Зерно',icon:'🌾',base:2},flour:{label:'Мука',icon:'⚪',base:3}};
@@ -24,6 +24,11 @@ function trade(key,side){if(!hasMarket()){addLog('Для торговли пос
 function afford(cost){return Object.entries(cost||{}).every(([k,v])=>(state.resources[k]||0)>=v)}
 function pay(cost){for(const [k,v] of Object.entries(cost||{}))state.resources[k]-=v}
 function housingCount(){return Object.values(state.tiles).reduce((n,t)=>n+(Buildings[t.type]?.housing||0),0)}
+const cityTiers=[{id:'hamlet',name:'Посёлок',icon:'🏘️',population:0,structures:0},{id:'village',name:'Деревня',icon:'🏡',population:9,structures:4},{id:'town',name:'Город',icon:'🏙️',population:14,structures:8,market:true},{id:'city',name:'Столица',icon:'👑',population:24,structures:12,keep:true}];
+function tierIndex(id){return Math.max(0,cityTiers.findIndex(t=>t.id===id))}
+function structureCount(){return Object.values(state.tiles).filter(t=>!['road','wall','gate'].includes(t.type)).length}
+function meetsTier(t){return state.population>=t.population&&structureCount()>=t.structures&&(!t.market||hasMarket())&&(!t.keep||Object.values(state.tiles).some(x=>x.type==='keep'))}
+function advanceCityTier(){let current=tierIndex(state.cityTier);for(let i=current+1;i<cityTiers.length;i++){if(!meetsTier(cityTiers[i]))break;state.cityTier=cityTiers[i].id;addLog('Эльдория выросла! Новый статус: '+cityTiers[i].name+'. В летописи начинается новая глава.')}}
 function connectedRoads(){return World.roadSet(state.tiles)}
 function accessRoads(buildingId,roads){return World.neighbors(buildingId).filter(id=>roads.has(id))}
 function roadPath(start,end,roads){
@@ -78,6 +83,9 @@ function render(){
  $('dateLabel').textContent=seasons[state.season]+' · Год '+state.year;
  $('clockLabel').textContent=clockText()+' · '+(state.clock<360?'Ночь':state.clock<720?'Утро':state.clock<1080?'День':'Вечер');
  $('stats').innerHTML=[['ЖИТЕЛИ',state.population,'в поселении'],['СЧАСТЬЕ',state.happiness+'%','настроение общины'],['РАБОЧИЕ',workers,'назначены на работу'],['ЖИЛЬЁ',housingCount(),'мест для жителей']].map(x=>'<div class="stat"><span>'+x[0]+'</span><strong>'+x[1]+'</strong><small>'+x[2]+'</small></div>').join('');
+ const tier=cityTiers[tierIndex(state.cityTier)],nextTier=cityTiers[tierIndex(state.cityTier)+1];
+ const walls=Object.values(state.tiles).filter(t=>t.type==='wall').length,gates=Object.values(state.tiles).filter(t=>t.type==='gate').length;
+ const progress=$('realmProgress');if(progress){progress.innerHTML='<div class="realm-tier"><span class="realm-tier-icon">'+tier.icon+'</span><div><small>СТАТУС ВЛАДЕНИЙ</small><b>'+tier.name+'</b></div><span class="realm-count">Кварталы: '+structureCount()+' · Стены: '+walls+' · Ворота: '+gates+'</span></div>'+(nextTier?'<div class="realm-next">Следующая ступень — <b>'+nextTier.name+'</b>: '+nextTier.population+' жителей и '+nextTier.structures+' зданий'+(nextTier.market?' · рынок':'')+(nextTier.keep?' · замок':'')+'</div>':'<div class="realm-next">Эльдория стала столицей. Впиши её имя в историю королевств.</div>')}
  $('resources').innerHTML=[['wood','🪵','Древесина'],['stone','🪨','Камень'],['gold','🪙','Золото'],['food','🥖','Провизия'],['grain','🌾','Зерно'],['flour','⚪','Мука']].map(([k,ic,n])=>'<div class="resource"><span>'+ic+' '+n+'</span><b>'+state.resources[k]+'</b></div>').join('');
  renderPeople();
  const market=$('market');if(market){const available=hasMarket(),caravan=state.caravan.arrived;market.innerHTML='<div class="market-status"><span class="market-emblem">🐎</span><div><b>'+(available?(caravan?'Караван прибыл в Эльдорию':'Рынок открыт'):'Торговля пока недоступна')+'</b><small>'+(available?(caravan?'Гости привезли товары и готовы к обмену':'Следующий караван через '+state.caravan.months+' мес.'):'Построй рынок, чтобы открыть торговлю')+'</small></div></div><div class="trade-list">'+Object.entries(tradeGoods).map(([k,g])=>'<div class="trade-row"><span class="trade-good">'+g.icon+' '+g.label+'<small>Пакет 5 ед. · купить: '+(tradePrice(k,'buy')*5)+' 🪙 / продать: '+(tradePrice(k,'sell')*5)+' 🪙</small></span><span class="trade-actions"><button data-trade="buy" data-good="'+k+'" '+(!available?'disabled':'')+'>Купить</button><button data-trade="sell" data-good="'+k+'" '+(!available?'disabled':'')+'>Продать</button></span></div>').join('')+'</div>';market.querySelectorAll('[data-trade]').forEach(btn=>btn.addEventListener('click',()=>trade(btn.dataset.good,btn.dataset.trade)))}
@@ -90,9 +98,10 @@ function render(){
 }
 function build(){
  const id=state.selected;if(id===null)return;const b=Buildings[state.build];
+ if(b.minTier&&tierIndex(state.cityTier)<tierIndex(b.minTier)){addLog('Для строительства «'+b.name+'» нужен статус «'+cityTiers[tierIndex(b.minTier)].name+'».');state.selected=null;render();return}
  if(!World.canBuild(id,state.build,state.tiles)){addLog('Здесь нельзя построить '+b.name.toLowerCase()+'. Для здания нужна свободная клетка у дороги.');state.selected=null;render();return}
  if(!afford(b.cost)){addLog('Не хватает ресурсов для строительства: '+b.name+'.');state.selected=null;render();return}
- pay(b.cost);state.tiles[id]={type:state.build};state.selected=null;assignJobs();addLog('Построено: '+b.name+'. Жители получили новые рабочие места.');render();
+ pay(b.cost);state.tiles[id]={type:state.build};state.selected=null;assignJobs();addLog('Построено: '+b.name+'. Жители получили новые рабочие места.');advanceCityTier();render();
 }
 function month(){
  const r=state.resources;
@@ -100,7 +109,7 @@ function month(){
  const buildingCount=Object.keys(state.tiles).filter(id=>state.tiles[id].type!=='road').length;const tax=Math.floor(state.population/3),upkeep=Math.floor(buildingCount/3);r.gold=Math.max(0,r.gold+tax-upkeep);if(tax||upkeep)addLog('Казна: налоги +'+tax+' 🪙, содержание построек −'+upkeep+' 🪙.');if(state.caravan.arrived){state.caravan.arrived=false;state.caravan.months=3;addLog('Караван покинул Эльдорию. Следующий прибудет через три месяца.')}else{state.caravan.months--;if(state.caravan.months<=0){state.caravan.arrived=true;addLog('К Эльдории прибыл торговый караван! На рынке особые цены.')}}const need=state.population*2,available=r.food;r.food=Math.max(0,available-need);
  if(available<need){state.happiness=Math.max(0,state.happiness-9);addLog('Запасов еды не хватило. Жители голодают, настроение падает.')}else state.happiness=Math.min(100,state.happiness+1);
  if(housingCount()>state.population&&r.food>=state.population){state.population++;const pool=['Илья','София','Марк','Алиса','Грегор','Нора','Феликс','Рада'];const name=pool[(state.people.length*3+state.month)%pool.length];state.people.push({name,job:'Без работы',icon:'🧑',id:state.people.length+1,home:state.people.length%2?31:49,workplace:null,pos:state.people.length%2?31:49,route:[],routeIndex:0,desiredTarget:null,status:'resting',walkTicks:0});assignJobs();addLog('В Эльдорию прибыла новая семья. Население выросло.')}
- state.month++;if(state.month>12){state.month=1;state.year++;state.season=(state.season+1)%4;addLog('Наступил новый год. Эльдория пережила ещё один круг времён.')}else addLog('Прошёл месяц. Мастера трудились, а жители заботились о поселении.');render();
+ advanceCityTier();state.month++;if(state.month>12){state.month=1;state.year++;state.season=(state.season+1)%4;addLog('Наступил новый год. Эльдория пережила ещё один круг времён.')}else addLog('Прошёл месяц. Мастера трудились, а жители заботились о поселении.');render();
 }
 function tick(){
  state.clock+=15;if(state.clock>=1440){state.clock=0;state.day++;if(state.day%7===1)addLog('Началась новая неделя в Эльдории.')}
