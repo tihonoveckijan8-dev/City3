@@ -39,7 +39,7 @@ function routeTo(c,target){
 }
 function assignJobs(){
  const slots=[];
- for(const [id,t] of Object.entries(state.tiles)){const b=Buildings[t.type];if(b?.jobs&&World.hasAccess(Number(id),state.tiles))for(let n=0;n<b.jobs;n++)slots.push({id:Number(id),name:b.name})}
+ for(const [id,t] of Object.entries(state.tiles)){const b=Buildings[t.type];if(b?.jobs&&World.hasAccess(Number(id),state.tiles))for(let n=0;n<b.jobs;n++)slots.push({id:Number(id),name:b.jobTitle||b.name})}
  state.people.forEach((p,i)=>{const slot=slots[i];p.workplace=slot?.id??null;p.job=slot?.name??'Без работы';p.desiredTarget=null;p.route=[];p.routeIndex=0;if(p.pos==null)p.pos=p.home});
 }
 function desiredFor(c){const h=state.clock/60;if(c.workplace&&h>=8&&h<17)return c.workplace;return c.home}
@@ -79,7 +79,7 @@ function render(){
  $('log').innerHTML=state.log.slice(0,5).map((s,i)=>'<div class="log-entry"><time>Запись '+(state.log.length-i)+'</time>'+s+'</div>').join('');
  $('selectionLabel').textContent=state.selected===null?'Выбери клетку для постройки':'Клетка '+(state.selected+1)+' · '+(state.tiles[state.selected]?Buildings[state.tiles[state.selected].type].name:'свободна');
  $('buildHint').textContent='Выбрано: '+Buildings[state.build].name;
- $('buildings').innerHTML=names.map(k=>{const b=Buildings[k];return '<button class="building '+(state.build===k?'active':'')+'" data-kind="'+k+'"><span class="emoji">'+b.icon+'</span><b>'+b.name+'</b><small>'+b.desc+'</small><small class="cost">'+Object.entries(b.cost||{}).map(([r,v])=>({wood:'🪵',stone:'🪨',gold:'🪙'}[r])+v).join(' · ')+'</small></button>'}).join('');
+ $('buildings').innerHTML=names.map(k=>{const b=Buildings[k],staff=Object.values(state.tiles).filter(t=>t.type===k).reduce((n,t)=>n+state.people.filter(p=>p.workplace===Object.keys(state.tiles).find(id=>state.tiles[id]===t)*1).length,0);return '<button class="building '+(state.build===k?'active':'')+'" data-kind="'+k+'"><span class="emoji">'+b.icon+'</span><b>'+b.name+'</b><small>'+b.desc+'</small><small class="staffing">'+(b.jobs?'Рабочие: '+staff+'/'+(b.jobs*Object.values(state.tiles).filter(t=>t.type===k).length)+' · '+(b.jobTitle||'рабочие'):'Не требует рабочих')+'</small><small class="cost">'+Object.entries(b.cost||{}).map(([r,v])=>({wood:'🪵',stone:'🪨',gold:'🪙'}[r])+v).join(' · ')+'</small></button>'}).join('');
  document.querySelectorAll('.building').forEach(btn=>btn.addEventListener('click',()=>{state.build=btn.dataset.kind;render()}));
  renderMap();Save.write(state);
 }
@@ -91,7 +91,7 @@ function build(){
 }
 function month(){
  const r=state.resources;
- for(const t of Object.values(state.tiles)){const b=Buildings[t.type];if(!b)continue;if(b.production)for(const [k,v] of Object.entries(b.production))r[k]+=v;if(b.recipe&&Object.entries(b.recipe.input).every(([k,v])=>r[k]>=v)){for(const [k,v] of Object.entries(b.recipe.input))r[k]-=v;for(const [k,v] of Object.entries(b.recipe.output))r[k]+=v}}
+ for(const [id,t] of Object.entries(state.tiles)){const b=Buildings[t.type];if(!b)continue;const staffed=state.people.filter(p=>p.workplace===Number(id)).length;if(b.jobs&&!staffed)continue;const ratio=b.jobs?staffed/b.jobs:1;if(b.production)for(const [k,v] of Object.entries(b.production))r[k]+=Math.floor(v*ratio);if(b.recipe){const input=Object.fromEntries(Object.entries(b.recipe.input).map(([k,v])=>[k,Math.max(1,Math.floor(v*ratio))]));const output=Object.fromEntries(Object.entries(b.recipe.output).map(([k,v])=>[k,Math.max(1,Math.floor(v*ratio))]));if(Object.entries(input).every(([k,v])=>r[k]>=v)){for(const [k,v] of Object.entries(input))r[k]-=v;for(const [k,v] of Object.entries(output))r[k]+=v}}}
  const need=state.population*2,available=r.food;r.food=Math.max(0,available-need);
  if(available<need){state.happiness=Math.max(0,state.happiness-9);addLog('Запасов еды не хватило. Жители голодают, настроение падает.')}else state.happiness=Math.min(100,state.happiness+1);
  if(housingCount()>state.population&&r.food>=state.population){state.population++;const pool=['Илья','София','Марк','Алиса','Грегор','Нора','Феликс','Рада'];const name=pool[(state.people.length*3+state.month)%pool.length];state.people.push({name,job:'Без работы',icon:'🧑',id:state.people.length+1,home:state.people.length%2?31:49,workplace:null,pos:state.people.length%2?31:49,route:[],routeIndex:0,desiredTarget:null,status:'resting',walkTicks:0});assignJobs();addLog('В Эльдорию прибыла новая семья. Население выросло.')}
