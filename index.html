@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101a18"><meta name="description" content="ELDORIA — живая средневековая фэнтези-стратегия.">
+<title>ELDORIA — Живое королевство</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+<header class="topbar"><a class="brand" href="#"><span class="sigil">✦</span><span><b>ELDORIA</b><small>ЖИВОЕ КОРОЛЕВСТВО</small></span></a><div class="season" id="dateLabel">Весна · Год I</div><button id="nextMonth" class="primary">Прожить месяц <span>→</span></button></header>
+<main>
+<section class="intro"><div><p class="eyebrow">ЛЕТОПИСЬ ОСНОВАНИЯ</p><h1>Твоё королевство<br><em>начинается здесь.</em></h1><p class="muted">Построй поселение, позаботься о людях и преврати тихую долину в легендарный город.</p></div><div class="realm-mark">✧<small>ЗЕМЛИ<br>ЭЛЬДОРИИ</small></div></section>
+<section class="stats" id="stats"></section>
+<div class="layout">
+<section class="world-panel panel"><div class="panel-head"><div><p class="eyebrow">ТВОЯ ДОЛИНА</p><h2>Карта владений</h2></div><span class="legend"><i></i> Выбрано для постройки</span></div><div id="map" class="map" aria-label="Карта поселения"></div><div class="map-foot"><span id="selectionLabel">Выбери свободную клетку</span><span>Колёсико / кнопки для обзора</span></div></section>
+<aside class="side">
+<section class="panel"><p class="eyebrow">СОКРОВИЩНИЦА</p><h2>Запасы</h2><div id="resources" class="resources"></div></section>
+<section class="panel"><p class="eyebrow">СОВЕТ СТАРЕЙШИН</p><h2>Поселение</h2><div id="people" class="people"></div></section>
+<section class="panel log-panel"><p class="eyebrow">ИЗ ЛЕТОПИСИ</p><div id="log" class="log"></div></section>
+</aside></div>
+<section class="panel build-panel"><div class="panel-head"><div><p class="eyebrow">РАСШИРЯЙ ВЛАДЕНИЯ</p><h2>Строительство</h2></div><span class="muted" id="buildHint">Сначала выбери здание</span></div><div id="buildings" class="building-list"></div></section>
+</main><footer>ELDORIA <span>·</span> Мир, который растёт вместе с тобой</footer>
+</div><script src="world.js"></script><script src="buildings.js"></script><script src="save.js"></script><script src="game.js"></script>
+</body></html>

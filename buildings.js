@@ -1,0 +1,16 @@
+(() => {
+window.Buildings={
+road:{name:'Дорога',icon:'🪨',desc:'Связывает здания с поселением',cost:{wood:1},kind:'road'},
+house:{name:'Дом поселенца',icon:'🏠',desc:'Место для 4 жителей',cost:{wood:8,stone:2},housing:4},
+manor:{name:'Усадьба',icon:'🏡',desc:'Место для 8 жителей',cost:{wood:15,stone:8,gold:5},housing:8},
+farm:{name:'Ферма',icon:'🌾',desc:'Производит зерно',cost:{wood:10,stone:2},jobs:2,production:{grain:6}},
+mill:{name:'Мельница',icon:'⚙️',desc:'Перемалывает зерно в муку',cost:{wood:14,stone:5},jobs:2,recipe:{input:{grain:4},output:{flour:3}}},
+bakery:{name:'Пекарня',icon:'🍞',desc:'Печёт хлеб из муки',cost:{wood:12,stone:5},jobs:2,recipe:{input:{flour:3},output:{food:6}}},
+lumber:{name:'Лесопилка',icon:'🪵',desc:'Добывает древесину',cost:{wood:8,stone:3},jobs:2,production:{wood:5}},
+quarry:{name:'Каменоломня',icon:'⛏️',desc:'Добывает камень',cost:{wood:9},jobs:2,production:{stone:3}},
+market:{name:'Рынок',icon:'🏪',desc:'Повышает благополучие',cost:{wood:18,stone:10},jobs:2,happiness:5},
+well:{name:'Колодец',icon:'🪣',desc:'Чистая вода для жителей',cost:{wood:5,stone:8},happiness:3},
+tavern:{name:'Таверна',icon:'🍺',desc:'Место встреч и отдыха',cost:{wood:20,stone:8},jobs:2,happiness:7},
+chapel:{name:'Часовня',icon:'⛪',desc:'Укрепляет дух общины',cost:{wood:12,stone:15,gold:8},happiness:8}
+};
+})();

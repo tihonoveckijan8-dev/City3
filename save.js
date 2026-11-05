@@ -1,0 +1,1 @@
+(() => {const KEY='eldoria.city3.save.v1';window.Save={load(){try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch{return null}},write(state){try{localStorage.setItem(KEY,JSON.stringify(state));return true}catch{return false}},clear(){localStorage.removeItem(KEY)}}})();
