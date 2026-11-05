@@ -60,13 +60,14 @@ function renderMap(){
  }
  state.people.forEach((p,i)=>{const cell=cells[p.pos];if(!cell)return;const dot=document.createElement('span');dot.className='citizen-dot '+(p.status==='walking'?'walking':p.status==='working'?'working':p.status==='blocked'?'blocked':'resting');dot.title=p.name+' · '+p.job;cell.append(dot)});
 }
+function renderPeople(){ $('people').innerHTML=state.people.map(p=>'<div class="person"><span class="avatar">'+p.icon+'</span><span>'+p.name+'<small>'+p.job+' · <span class="status">'+({walking:'в пути',working:'на работе',resting:'дома',blocked:'нет дороги'}[p.status]||'дома')+'</span></small></span></div>').join('') }
 function render(){
  const workers=state.people.filter(p=>p.workplace!==null).length;
  $('dateLabel').textContent=seasons[state.season]+' · Год '+state.year;
  $('clockLabel').textContent=clockText()+' · '+(state.clock<360?'Ночь':state.clock<720?'Утро':state.clock<1080?'День':'Вечер');
  $('stats').innerHTML=[['ЖИТЕЛИ',state.population,'в поселении'],['СЧАСТЬЕ',state.happiness+'%','настроение общины'],['РАБОЧИЕ',workers,'назначены на работу'],['ЖИЛЬЁ',housingCount(),'мест для жителей']].map(x=>'<div class="stat"><span>'+x[0]+'</span><strong>'+x[1]+'</strong><small>'+x[2]+'</small></div>').join('');
  $('resources').innerHTML=[['wood','🪵','Древесина'],['stone','🪨','Камень'],['gold','🪙','Золото'],['food','🥖','Провизия'],['grain','🌾','Зерно'],['flour','⚪','Мука']].map(([k,ic,n])=>'<div class="resource"><span>'+ic+' '+n+'</span><b>'+state.resources[k]+'</b></div>').join('');
- $('people').innerHTML=state.people.map(p=>'<div class="person"><span class="avatar">'+p.icon+'</span><span>'+p.name+'<small>'+p.job+' · <span class="status">'+({walking:'в пути',working:'на работе',resting:'дома',blocked:'нет дороги'}[p.status]||'дома')+'</span></small></span></div>').join('');
+ renderPeople();
  $('log').innerHTML=state.log.slice(0,5).map((s,i)=>'<div class="log-entry"><time>Запись '+(state.log.length-i)+'</time>'+s+'</div>').join('');
  $('selectionLabel').textContent=state.selected===null?'Выбери клетку для постройки':'Клетка '+(state.selected+1)+' · '+(state.tiles[state.selected]?Buildings[state.tiles[state.selected].type].name:'свободна');
  $('buildHint').textContent='Выбрано: '+Buildings[state.build].name;
@@ -91,8 +92,9 @@ function month(){
 function tick(){
  state.clock+=15;if(state.clock>=1440){state.clock=0;state.day++;if(state.day%7===1)addLog('Началась новая неделя в Эльдории.')}
  state.people.forEach(updateCitizen);$('clockLabel').textContent=clockText()+' · '+(state.clock<360?'Ночь':state.clock<720?'Утро':state.clock<1080?'День':'Вечер');
- renderMap();Save.write(state);
+ renderPeople();renderMap();Save.write(state);
 }
+assignJobs();
 $('nextMonth').addEventListener('click',month);
 render();window.setInterval(tick,900);
 })();
