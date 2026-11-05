@@ -30,6 +30,11 @@ data.treasury=Number.isFinite(data.treasury)?data.treasury:55;
 data.influence=Number.isFinite(data.influence)?data.influence:24;
 data.months=Number.isFinite(data.months)?data.months:0;
 data.claimed=Number.isFinite(data.claimed)?data.claimed:Math.max(0,data.owned.length-1);
+// WHY: military state migrates independently to preserve existing kingdom saves.
+data.army=Number.isFinite(data.army)?Math.max(0,data.army):0;
+data.morale=Number.isFinite(data.morale)?Math.max(0,Math.min(100,data.morale)):80;
+data.siege=data.siege&&typeof data.siege.target==='string'?data.siege:null;
+data.warLog=Array.isArray(data.warLog)?data.warLog:[];
 const root=document.getElementById('kingdomApp');
 if(!root)return;
 function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch{}}
@@ -41,6 +46,10 @@ function neighbors(p){return provinces.filter(q=>p.links.includes(q.id))}
 function select(id){data.selected=id;save();render()}
 function scout(id){const p=byId[id];if(!p||!canScout(p))return;data.influence-=5;data.treasury-=8;data.discovered.push(id);data.selected=id;save();render()}
 function claim(id){const p=byId[id];if(!p||!canClaim(p))return;data.treasury-=p.cost;data.influence-=3;data.owned.push(id);data.claimed++;data.selected=id;save();render()}
+function warNote(message){data.warLog.unshift(message);data.warLog=data.warLog.slice(0,4)}
+function recruit(){if(data.army>=30||data.treasury<10||data.influence<2)return;data.treasury-=10;data.influence-=2;data.army++;data.morale=Math.min(100,data.morale+1);warNote('Новый воин принёс присягу короне. В строю: '+data.army+'.');save();render()}
+function startSiege(id){const p=byId[id];if(!p||!p.rival||isOwned(id)||!isKnown(id)||data.siege||data.army<5||data.treasury<20||data.influence<8)return;data.treasury-=20;data.influence-=8;data.siege={target:id,months:3,startedWith:data.army};data.morale=Math.max(0,data.morale-3);warNote('Армия Эльдории выступила к провинции «'+p.name+'». Началась осада державы '+p.rival+'.');save();render()}
+function resolveSiegeMonth(){if(!data.siege)return;data.siege.months--;data.morale=Math.max(0,data.morale-2);const p=byId[data.siege.target];if(data.siege.months>0){warNote('Осада «'+p.name+'»: до решающего штурма осталось '+data.siege.months+' мес.');return}const force=data.army*(.65+data.morale/200),defense=p.id==='coast'?11:8;if(force>=defense){const losses=Math.min(data.army,Math.max(1,Math.floor(data.army*.2)));data.army-=losses;data.owned.push(p.id);data.claimed++;data.treasury+=18;data.influence+=5;data.morale=Math.min(100,data.morale+14);warNote('Победа! «'+p.name+'» присоединена. Потери: '+losses+' воинов. Казна получила 18 золотых.')}else{const losses=Math.min(data.army,Math.max(2,Math.ceil(data.army*.45)));data.army-=losses;data.morale=Math.max(15,data.morale-18);warNote('Штурм «'+p.name+'» отбит. Потери: '+losses+' воинов. Армия отступила.')}data.siege=null}
 function render(){
  const p=byId[data.selected]||byId.eldoria;
  const map=provinces.map(q=>{
@@ -53,13 +62,18 @@ function render(){
  else if(!isKnown(p.id))action='<button class="kingdom-action" data-action="scout" '+(canScout(p)?'':'disabled')+'>Разведать земли · 8 🪙 · 5 влияния</button><small class="kingdom-hint">Для разведки нужна соседняя ваша провинция, 8 золотых и 5 влияния.</small>';
  else action='<button class="kingdom-action" data-action="claim" '+(canClaim(p)?'':'disabled')+'>Присоединить · '+p.cost+' 🪙 · 3 влияния</button><small class="kingdom-hint">После присоединения земля начнёт приносить доход короне.</small>';
  root.innerHTML='<div class="kingdom-summary"><div><small>ЗЕМЛИ КОРОНЫ</small><b>'+data.owned.length+' / '+provinces.length+'</b></div><div><small>КОРОЛЕВСКАЯ КАЗНА</small><b>'+data.treasury+' 🪙</b></div><div><small>ВЛИЯНИЕ</small><b>'+data.influence+' ✦</b></div><div><small>РАСШИРЕНИЕ</small><b>'+data.claimed+' провинций</b></div></div><div class="kingdom-layout"><div class="kingdom-map-wrap"><div class="kingdom-map" aria-label="Карта провинций">'+map+'</div><div class="kingdom-legend"><span><i class="legend-owned"></i> Ваши земли</span><span><i class="legend-known"></i> Разведано</span><span><i class="legend-fog"></i> Туман войны</span></div></div><aside class="province-detail"><small class="detail-kicker">ПРОВИНЦИЯ · '+(isOwned(p.id)?'ПОД ВАШЕЙ ВЛАСТЬЮ':isKnown(p.id)?'РАЗВЕДАНА':'НЕИЗВЕДАНА')+'</small><div class="detail-emblem">'+(isKnown(p.id)?p.icon:'❔')+'</div><h3>'+(isKnown(p.id)?p.name:'Неизведанная земля')+'</h3><p>'+(isKnown(p.id)?p.desc:'Отправьте разведчиков, чтобы узнать, что скрывает эта часть королевства.')+'</p>'+(isKnown(p.id)?'<div class="province-facts"><span>Местность<b>'+p.kind+'</b></span><span>Особенность<b>'+p.resource+'</b></span>'+(p.rival?'<span>Претензии соседей<b>'+p.rival+'</b></span>':'')+'</div>':'')+'<div class="province-neighbors"><small>СОСЕДНИЕ ЗЕМЛИ</small><div>'+links+'</div></div>'+action+'</aside></div><div class="kingdom-footer"><span>Каждый прожитый месяц приносит доход со всех присоединённых провинций.</span><button type="button" data-action="reset" title="Сбросить только карту королевства">Сбросить карту</button></div>';
- root.querySelectorAll('[data-province]').forEach(btn=>btn.addEventListener('click',()=>select(btn.dataset.province)));
+ const military='<section class="army-command"><div class="army-heading"><div><small>КОРОЛЕВСКОЕ ВОЙСКО</small><h3>Армия Эльдории</h3><p>Собирай дружину, укрепляй боевой дух и веди осады чужих крепостей.</p></div><div class="army-crest">⚔️</div></div><div class="army-metrics"><span>Воинов<b>'+data.army+' / 30</b></span><span>Боевой дух<b>'+data.morale+'%</b></span><span>Сила войска<b>'+Math.floor(data.army*(.65+data.morale/200))+'</b></span></div><div class="army-actions"><button type="button" data-army="recruit" '+(data.army>=30||data.treasury<10||data.influence<2?'disabled':'')+'>Нанять воина · 10 🪙 · 2 влияния</button></div>'+(data.siege?'<div class="siege-active"><b>⚔️ Идёт осада: '+byId[data.siege.target].name+'</b><span>До штурма: '+data.siege.months+' мес. · В походе '+data.siege.startedWith+' воинов</span></div>':'<div class="siege-targets"><small>ЦЕЛИ ДЛЯ ВОЕННОГО ПОХОДА</small>'+provinces.filter(q=>q.rival&&!isOwned(q.id)).map(q=>'<div class="siege-target"><span>'+q.icon+' '+q.name+' <small>Держава: '+q.rival+'</small></span><button type="button" data-siege="'+q.id+'" '+(!isKnown(q.id)||data.army<5||data.treasury<20||data.influence<8?'disabled':'')+'>Начать осаду</button></div>').join('')+'</div>')+(data.warLog.length?'<div class="war-chronicle">'+data.warLog.map(x=>'<p>'+x+'</p>').join('')+'</div>':'')+'</section>';
+ root.insertAdjacentHTML('beforeend',military);
+ root.querySelector('[data-army="recruit"]')?.addEventListener('click',recruit);
+ root.querySelectorAll('[data-siege]').forEach(btn=>btn.addEventListener('click',()=>startSiege(btn.dataset.siege)));
+root.querySelectorAll('[data-province]').forEach(btn=>btn.addEventListener('click',()=>select(btn.dataset.province)));
  root.querySelector('[data-action="scout"]')?.addEventListener('click',()=>scout(p.id));
  root.querySelector('[data-action="claim"]')?.addEventListener('click',()=>claim(p.id));
  root.querySelector('[data-action="reset"]')?.addEventListener('click',()=>{if(confirm('Сбросить только исследование и владения королевства? Город и его сохранение не изменятся.')){data=initial();save();render()}});
 }
 document.getElementById('nextMonth')?.addEventListener('click',()=>{
  data.months++;
+ resolveSiegeMonth();
  const income=data.owned.reduce((sum,id)=>sum+(byId[id]?.gold||0),0);
  const influence=data.owned.reduce((sum,id)=>sum+(byId[id]?.influence||0),0);
  data.treasury+=income;data.influence+=influence;save();render();
